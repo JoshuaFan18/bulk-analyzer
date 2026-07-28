@@ -345,7 +345,6 @@ Note to Agent: tell me if the png format is slow/clunky for this purpose
 **Collection**
 - Add power filter
 - Supertype should be a separate filter from type. 
-- Add Double-sided filter option from dot.gg\
 - Replace the letter + color circle currently used for domain filter with the png icons without the "2" suffix. i.e. icons\Chaos.png. No need to algorithmically do this, hard code the pointer.
 - Lock the filter/search bar so that when the user scrolls it stays at the top
 

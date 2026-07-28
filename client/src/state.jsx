@@ -3,6 +3,7 @@ import { api } from './api.js';
 import { buildKeywordIndex, buildOwnedIndex, playsetTarget, wishlistQty } from './lib/cards.js';
 import { buildInDeckIndex } from './lib/deck.js';
 import { isReservedTag } from './lib/tags.js';
+import POWER_COSTS from './data/powerCosts.json';
 
 const AppContext = createContext(null);
 export const useApp = () => useContext(AppContext);
@@ -52,7 +53,13 @@ export function AppProvider({ children }) {
     }
   };
 
-  const cards = cardsPayload?.cards || [];
+  // DotGG's feed carries only the ENERGY cost (card.cost). The POWER (colored)
+  // cost is merged in from a static map (scripts/build-power-costs.mjs). It is
+  // null for cards with no power concept -- Legends, Battlefields, Runes, tokens.
+  const cards = useMemo(
+    () => (cardsPayload?.cards || []).map((c) => ({ ...c, power: POWER_COSTS[c.id] ?? null })),
+    [cardsPayload],
+  );
   const cardsById = useMemo(() => {
     const m = new Map();
     for (const c of cards) m.set(c.id, c);

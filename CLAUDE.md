@@ -285,8 +285,17 @@ from `cards`: surplus only exists for what you own, so the loop is over the owne
   referenced by any code. There is no `client/public/`.
 - Deliberately out of scope (previously decided against): binders, product/sealed tracking, card
   scanning, playtesting and opening-hand tools.
-- The DotGG API exposes no **power** stat (only `cost` and `might`), so a power filter or an
-  energy → power → default sort chain is not currently possible from this data source.
+- The DotGG API exposes no **power** stat — its `cost` is the *energy* (generic) cost, and there
+  is no separate colored-cost field. `card.power` is instead merged in from a static map,
+  [client/src/data/powerCosts.json](client/src/data/powerCosts.json), keyed by printing id and
+  built by [scripts/build-power-costs.mjs](scripts/build-power-costs.mjs) from the keyless
+  `api.riftcodex.com/cards` (whose `attributes.energy` is byte-identical to DotGG `cost`, verified,
+  so only `power` is taken). Regenerate with `node scripts/build-power-costs.mjs` when a new set
+  drops. It is **null** for cards with no power concept (Legends, Battlefields, Runes, tokens) and
+  folds across printings by `cardIdentity`, so alt-art and promo printings inherit their base
+  card's power. Riot's own `riftbound-content-v1` endpoint carries the same stat but is gated to
+  approved production keys, so it is not usable here. An energy → power → default sort chain is now
+  possible (`card.cost` then `card.power`).
 - `npm run build` is the cheapest check that nothing is broken, since there is no test suite —
   it catches bad imports and syntax that Vite's hot reload will happily paper over.
 

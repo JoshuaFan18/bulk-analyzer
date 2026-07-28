@@ -225,13 +225,19 @@ export function matchesPower(card, bucket) {
   return bucket === '3+' ? card.power >= 3 : card.power === Number(bucket);
 }
 
-// Encoded as "type:Unit" / "super:Champion" so one control can offer both.
-export function matchesTypeFilter(card, value) {
+// Type and supertype are two independent questions and get a control each, so
+// they compose: "Unit" + "Champion" is the champion units, not one or the other.
+export function matchesType(card, value) {
   if (value === 'any') return true;
-  const [kind, name] = value.split(':');
-  if (kind === 'type') return card.type === name;
-  if (name === 'Token') return isToken(card);
-  return card.supertype === name;
+  return card.type === value;
+}
+
+// Token is not plain supertype equality -- isToken also counts the typeless
+// cards, and dropping that would silently change which cards match.
+export function matchesSupertype(card, value) {
+  if (value === 'any') return true;
+  if (value === 'Token') return isToken(card);
+  return card.supertype === value;
 }
 
 export function cardMatchesText(card, text) {

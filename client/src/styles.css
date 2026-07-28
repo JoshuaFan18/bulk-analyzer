@@ -214,17 +214,32 @@ a {
   gap: 4px;
 }
 
+/* Holds a domain PNG, except for Colorless, which has no art and keeps the
+   coloured letter it always had (its fill comes from an inline style). */
 .color-chip {
-  width: 26px;
-  height: 26px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   border: 2px solid var(--border);
   cursor: pointer;
   padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 10px;
   font-weight: 700;
   color: #0b0d10;
-  opacity: 0.35;
+  opacity: 0.4;
+}
+
+.color-chip .domain-icon {
+  width: 22px;
+  height: 22px;
+  vertical-align: 0;
+}
+
+.color-chip:hover {
+  opacity: 0.75;
 }
 
 .color-chip.on {
@@ -1915,4 +1930,48 @@ details.panel summary {
   width: 13px;
   height: 13px;
   vertical-align: -2px;
+}
+
+/* ---- Pinned filters (Collection page) ---- */
+/* .filter-bar and .toolbar are shared classes — the deck builder uses both — so
+   the pin lives on a wrapper modifier and neither base rule is touched. The
+   toolbar sits inside the wrapper rather than being stuck separately, since its
+   own offset would depend on however many rows the filter bar happens to wrap
+   to. Below the topbar's z-index (50) so the nav still wins.
+   The padding is what stays opaque while the grid scrolls underneath; the
+   matching negative top margin keeps the unstuck layout exactly where it was. */
+.filter-stack.pinned {
+  position: sticky;
+  top: 68px;
+  z-index: 30;
+  background: var(--bg);
+  padding: 8px 0 12px;
+  margin-top: -8px;
+}
+
+.filter-stack.pinned .toolbar {
+  margin-bottom: 0;
+}
+
+/* On a narrow viewport the bar wraps to several rows and would eat the screen,
+   so it unpins — the same escape the stats and deck panels take. */
+@media (max-width: 1000px) {
+  .filter-stack.pinned {
+    position: static;
+  }
+}
+
+/* ---- Toolbar checkboxes ---- */
+/* The global input rule (padding 6px 10px, plus a border and a fill) lands on
+   checkboxes too, which is what left the Surplus toggle sitting low and wide of
+   its label. Reset it to a plain box so label.inline's own gap does the spacing. */
+.toolbar label.inline input[type='checkbox'] {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  accent-color: var(--accent-2);
+  flex: none;
 }

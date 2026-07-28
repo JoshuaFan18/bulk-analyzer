@@ -176,8 +176,10 @@ export default function SurplusPage() {
             type="checkbox"
             checked={excludeKeep}
             onChange={(e) => setExcludeKeep(e.target.checked)}
-          />{' '}
-          Hide <code>{KEEP_TAG}</code>-tagged
+          />
+          {/* label.inline is a flex row with its own gap — a literal space here
+              would add a second one and push the text off the checkbox. */}
+          <span>Hide Keeps</span>
         </label>
         <label className="inline">
           Min value $

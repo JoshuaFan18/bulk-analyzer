@@ -6,20 +6,25 @@ import ImportDialog from '../components/ImportDialog.jsx';
 import RapidEntryDialog from '../components/RapidEntryDialog.jsx';
 import CardDetailModal from '../components/CardDetailModal.jsx';
 import Modal from '../components/Modal.jsx';
+import DomainIcon from '../components/DomainIcon.jsx';
 import { exportDotGg } from '../lib/importExport.js';
 import { downloadText } from '../lib/download.js';
+import { DOMAIN_ICON } from '../lib/icons.js';
 import {
   CARD_TYPES,
   COLORS,
   COLOR_HEX,
   MIGHT_BUCKETS,
+  POWER_BUCKETS,
   RARITIES,
   SORTERS,
   SUPERTYPES,
   cardMatchesText,
   isToken,
   matchesMight,
-  matchesTypeFilter,
+  matchesPower,
+  matchesSupertype,
+  matchesType,
   ownedCopies,
   setLabel,
   wishlistQty,
@@ -40,7 +45,9 @@ const DEFAULT_FILTERS = {
   cost: 'any',
   rarity: 'any',
   type: 'any',
+  supertype: 'any',
   might: 'any',
+  power: 'any',
   keyword: 'any',
   tag: 'any',
   legality: 'any',
@@ -97,8 +104,10 @@ export default function CollectionPage() {
       if (filters.rarity !== 'any') {
         if (filters.rarity === 'none' ? card.rarity : card.rarity !== filters.rarity) return false;
       }
-      if (!matchesTypeFilter(card, filters.type)) return false;
+      if (!matchesType(card, filters.type)) return false;
+      if (!matchesSupertype(card, filters.supertype)) return false;
       if (!matchesMight(card, filters.might)) return false;
+      if (!matchesPower(card, filters.power)) return false;
       if (filters.cost !== 'any') {
         const c = card.cost;
         if (filters.cost === '7+' ? !(c >= 7) : c !== Number(filters.cost)) return false;
@@ -163,144 +172,200 @@ export default function CollectionPage() {
         art to open the full card.
       </p>
 
-      <div className="filter-bar">
-        <select value={filters.set} onChange={(e) => set({ set: e.target.value })}>
-          <option value="any">Set: Any</option>
-          {setNames.map(([code, name]) => (
-            <option key={code} value={code}>
-              {code} — {name}
-            </option>
-          ))}
-        </select>
+      {/* Pinned under the topbar: the grid scrolls beneath the filters. */}
+      <div className="filter-stack pinned">
+        <div className="filter-bar">
+          <select value={filters.set} onChange={(e) => set({ set: e.target.value })}>
+            <option value="any">Set: Any</option>
+            {setNames.map(([code, name]) => (
+              <option key={code} value={code}>
+                {code} — {name}
+              </option>
+            ))}
+          </select>
 
-        <div className="color-chips">
-          {COLORS.map((color) => (
-            <button
-              key={color}
-              className={`color-chip ${filters.colors.includes(color) ? 'on' : ''}`}
-              style={{ background: COLOR_HEX[color] }}
-              title={color}
-              onClick={() =>
-                set({
-                  colors: filters.colors.includes(color)
-                    ? filters.colors.filter((c) => c !== color)
-                    : [...filters.colors, color],
-                })
-              }
-            >
-              {color[0]}
-            </button>
-          ))}
-        </div>
-        <label className="inline">
-          <input
-            type="checkbox"
-            checked={filters.colorAnd}
-            onChange={(e) => set({ colorAnd: e.target.checked })}
-          />
-          AND
-        </label>
+          <div className="color-chips">
+            {COLORS.map((color) => (
+              <button
+                key={color}
+                className={`color-chip ${filters.colors.includes(color) ? 'on' : ''}`}
+                // Colorless has no art of its own and must not borrow the rainbow
+                // rune, which reads as "any domain" — the opposite of no domain.
+                style={DOMAIN_ICON[color] ? undefined : { background: COLOR_HEX[color] }}
+                title={color}
+                onClick={() =>
+                  set({
+                    colors: filters.colors.includes(color)
+                      ? filters.colors.filter((c) => c !== color)
+                      : [...filters.colors, color],
+                  })
+                }
+              >
+                {DOMAIN_ICON[color] ? <DomainIcon domain={color} variant="plain" /> : color[0]}
+              </button>
+            ))}
+          </div>
+          <label className="inline">
+            <input
+              type="checkbox"
+              checked={filters.colorAnd}
+              onChange={(e) => set({ colorAnd: e.target.checked })}
+            />
+            AND
+          </label>
 
-        <select value={filters.cost} onChange={(e) => set({ cost: e.target.value })}>
-          <option value="any">Cost: Any</option>
-          {[0, 1, 2, 3, 4, 5, 6].map((c) => (
-            <option key={c} value={c}>
-              Cost: {c}
-            </option>
-          ))}
-          <option value="7+">Cost: 7+</option>
-        </select>
+          <select value={filters.cost} onChange={(e) => set({ cost: e.target.value })}>
+            <option value="any">Cost: Any</option>
+            {[0, 1, 2, 3, 4, 5, 6].map((c) => (
+              <option key={c} value={c}>
+                Cost: {c}
+              </option>
+            ))}
+            <option value="7+">Cost: 7+</option>
+          </select>
 
-        <select value={filters.rarity} onChange={(e) => set({ rarity: e.target.value })}>
-          <option value="any">Rarity: Any</option>
-          {RARITIES.map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
-          ))}
-          <option value="none">No rarity (tokens)</option>
-        </select>
+          <select value={filters.rarity} onChange={(e) => set({ rarity: e.target.value })}>
+            <option value="any">Rarity: Any</option>
+            {RARITIES.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+            <option value="none">No rarity (tokens)</option>
+          </select>
 
-        <select value={filters.type} onChange={(e) => set({ type: e.target.value })}>
-          <option value="any">Type: Any</option>
-          <optgroup label="Card type">
+          <select value={filters.type} onChange={(e) => set({ type: e.target.value })}>
+            <option value="any">Type: Any</option>
             {CARD_TYPES.map((t) => (
-              <option key={t} value={`type:${t}`}>
-                {t}
+              <option key={t} value={t}>
+                Type: {t}
               </option>
             ))}
-          </optgroup>
-          <optgroup label="Super type">
+          </select>
+
+          <select value={filters.supertype} onChange={(e) => set({ supertype: e.target.value })}>
+            <option value="any">Super type: Any</option>
             {SUPERTYPES.map((t) => (
-              <option key={t} value={`super:${t}`}>
-                {t}
+              <option key={t} value={t}>
+                Super type: {t}
               </option>
             ))}
-          </optgroup>
-        </select>
+          </select>
 
-        <select value={filters.might} onChange={(e) => set({ might: e.target.value })}>
-          <option value="any">Might: Any</option>
-          {MIGHT_BUCKETS.map((m) => (
-            <option key={m} value={m}>
-              Might: {m}
-            </option>
-          ))}
-        </select>
+          <select value={filters.might} onChange={(e) => set({ might: e.target.value })}>
+            <option value="any">Might: Any</option>
+            {MIGHT_BUCKETS.map((m) => (
+              <option key={m} value={m}>
+                Might: {m}
+              </option>
+            ))}
+          </select>
 
-        <select value={filters.keyword} onChange={(e) => set({ keyword: e.target.value })}>
-          <option value="any">Keyword: Any</option>
-          {keywordIndex.all.map(([kw, n]) => (
-            <option key={kw} value={kw}>
-              {kw} ({n})
-            </option>
-          ))}
-        </select>
+          <select value={filters.power} onChange={(e) => set({ power: e.target.value })}>
+            <option value="any">Power: Any</option>
+            {POWER_BUCKETS.map((p) => (
+              <option key={p} value={p}>
+                Power: {p}
+              </option>
+            ))}
+          </select>
 
-        <select value={filters.legality} onChange={(e) => set({ legality: e.target.value })}>
-          <option value="any">Legality: Any</option>
-          <option value="legal">Legal only</option>
-          <option value="banned">Banned only</option>
-        </select>
+          <select value={filters.keyword} onChange={(e) => set({ keyword: e.target.value })}>
+            <option value="any">Keyword: Any</option>
+            {keywordIndex.all.map(([kw, n]) => (
+              <option key={kw} value={kw}>
+                {kw} ({n})
+              </option>
+            ))}
+          </select>
 
-        <select value={filters.errata} onChange={(e) => set({ errata: e.target.value })}>
-          <option value="any">Errata: Any</option>
-          <option value="yes">Has errata</option>
-          <option value="no">No errata</option>
-        </select>
+          <select value={filters.legality} onChange={(e) => set({ legality: e.target.value })}>
+            <option value="any">Legality: Any</option>
+            <option value="legal">Legal only</option>
+            <option value="banned">Banned only</option>
+          </select>
 
-        <select value={filters.tag} onChange={(e) => set({ tag: e.target.value })}>
-          <option value="any">Tag: Any</option>
-          <optgroup label="Status">
-            <option value="auto:wishlist">Wishlisted</option>
-            <option value="auto:indeck">In Deck</option>
-            <option value="auto:untagged">No custom tags</option>
-          </optgroup>
-          {customTags.length > 0 && (
-            <optgroup label="My tags">
-              {customTags.map((t) => (
-                <option key={t} value={`custom:${t}`}>
+          <select value={filters.errata} onChange={(e) => set({ errata: e.target.value })}>
+            <option value="any">Errata: Any</option>
+            <option value="yes">Has errata</option>
+            <option value="no">No errata</option>
+          </select>
+
+          <select value={filters.tag} onChange={(e) => set({ tag: e.target.value })}>
+            <option value="any">Tag: Any</option>
+            <optgroup label="Status">
+              <option value="auto:wishlist">Wishlisted</option>
+              <option value="auto:indeck">In Deck</option>
+              <option value="auto:untagged">No custom tags</option>
+            </optgroup>
+            {customTags.length > 0 && (
+              <optgroup label="My tags">
+                {customTags.map((t) => (
+                  <option key={t} value={`custom:${t}`}>
+                    {t}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            <optgroup label="Card tags">
+              {apiTags.map((t) => (
+                <option key={t} value={`api:${t}`}>
                   {t}
                 </option>
               ))}
             </optgroup>
-          )}
-          <optgroup label="Card tags">
-            {apiTags.map((t) => (
-              <option key={t} value={`api:${t}`}>
-                {t}
-              </option>
-            ))}
-          </optgroup>
-        </select>
+          </select>
 
-        <input
-          type="search"
-          placeholder="Search name, ID, or text…"
-          value={filters.search}
-          onChange={(e) => set({ search: e.target.value })}
-          style={{ minWidth: 200 }}
-        />
+          <input
+            type="search"
+            placeholder="Search name, ID, or text…"
+            value={filters.search}
+            onChange={(e) => set({ search: e.target.value })}
+            style={{ minWidth: 200 }}
+          />
+        </div>
+
+        <div className="toolbar">
+          <span className="count-note">{filtered.length} cards</span>
+          <button onClick={() => setShowRapid(true)}>Rapid entry</button>
+          <button onClick={() => setShowImport(true)}>Import</button>
+          <button onClick={() => setShowExport(true)}>Export</button>
+          <button onClick={refreshPrices} disabled={refreshingPrices}>
+            {refreshingPrices ? 'Updating prices…' : 'Update TCGplayer prices'}
+          </button>
+          {pricesFetchedAt && (
+            <span className="count-note">
+              prices as of {new Date(pricesFetchedAt).toLocaleString()}
+            </span>
+          )}
+          <span className="spacer" />
+          <select value={filters.show} onChange={(e) => set({ show: e.target.value })}>
+            <option value="all">Show: All cards</option>
+            <option value="owned">Show: Owned</option>
+            <option value="missing">Show: Not owned</option>
+            <option value="incomplete">Show: Incomplete playset</option>
+            <option value="wishlist">Show: Wishlisted</option>
+          </select>
+          <select value={filters.sort} onChange={(e) => set({ sort: e.target.value })}>
+            <option value="default">Sort: Default</option>
+            <option value="name">Sort: Name</option>
+            <option value="price-desc">Sort: Price high → low</option>
+            <option value="price-asc">Sort: Price low → high</option>
+            <option value="rarity">Sort: Rarity</option>
+            <option value="cost">Sort: Cost</option>
+          </select>
+          <button onClick={() => setShowStats((s) => !s)}>
+            {showStats ? 'Hide stats' : 'Stats'}
+          </button>
+          <button
+            onClick={() => {
+              setFilters(DEFAULT_FILTERS);
+              setVisibleCount(PAGE_SIZE);
+            }}
+          >
+            Reset
+          </button>
+        </div>
       </div>
 
       {/* Shared by every tile's add-tag input. */}
@@ -309,48 +374,6 @@ export default function CollectionPage() {
           <option key={t} value={t} />
         ))}
       </datalist>
-
-      <div className="toolbar">
-        <span className="count-note">{filtered.length} cards</span>
-        <button onClick={() => setShowRapid(true)}>Rapid entry</button>
-        <button onClick={() => setShowImport(true)}>Import</button>
-        <button onClick={() => setShowExport(true)}>Export</button>
-        <button onClick={refreshPrices} disabled={refreshingPrices}>
-          {refreshingPrices ? 'Updating prices…' : 'Update TCGplayer prices'}
-        </button>
-        {pricesFetchedAt && (
-          <span className="count-note">
-            prices as of {new Date(pricesFetchedAt).toLocaleString()}
-          </span>
-        )}
-        <span className="spacer" />
-        <select value={filters.show} onChange={(e) => set({ show: e.target.value })}>
-          <option value="all">Show: All cards</option>
-          <option value="owned">Show: Owned</option>
-          <option value="missing">Show: Not owned</option>
-          <option value="incomplete">Show: Incomplete playset</option>
-          <option value="wishlist">Show: Wishlisted</option>
-        </select>
-        <select value={filters.sort} onChange={(e) => set({ sort: e.target.value })}>
-          <option value="default">Sort: Default</option>
-          <option value="name">Sort: Name</option>
-          <option value="price-desc">Sort: Price high → low</option>
-          <option value="price-asc">Sort: Price low → high</option>
-          <option value="rarity">Sort: Rarity</option>
-          <option value="cost">Sort: Cost</option>
-        </select>
-        <button onClick={() => setShowStats((s) => !s)}>
-          {showStats ? 'Hide stats' : 'Stats'}
-        </button>
-        <button
-          onClick={() => {
-            setFilters(DEFAULT_FILTERS);
-            setVisibleCount(PAGE_SIZE);
-          }}
-        >
-          Reset
-        </button>
-      </div>
 
       <div className={`collection-layout ${showStats ? '' : 'no-stats'}`}>
         <div>

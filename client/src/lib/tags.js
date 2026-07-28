@@ -67,7 +67,7 @@ export function displayTags(cardId, { tags, wishlist, inDeckIndex } = {}) {
 }
 
 // Encoded as "api:Ionia" / "custom:Keep" / "auto:wishlist" so one select can
-// offer all of them, mirroring matchesTypeFilter's type:/super: encoding.
+// offer all three kinds without needing three controls.
 export function matchesTagFilter(card, value, { tags, wishlist, inDeckIndex } = {}) {
   if (!value || value === 'any') return true;
   const sep = value.indexOf(':');

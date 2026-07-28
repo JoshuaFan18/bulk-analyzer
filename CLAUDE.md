@@ -89,7 +89,12 @@ external sources so the browser doesn't hit CORS.
 - [client/src/lib/cards.js](client/src/lib/cards.js) — domain constants and pure helpers
   (colors, rarities, `SET_CODE_BY_NAME`, `normName` for fuzzy name matching, `playsetTarget`,
   `collectionValue`), plus the printing, pricing, and legality predicates described below.
-  Anything reusable and non-visual belongs here or in `lib/deck.js`, not in a page.
+  Anything reusable and non-visual belongs here or in `lib/deck.js`, not in a page. The bucket
+  lists and their matchers (`MIGHT_BUCKETS`/`matchesMight`, `POWER_BUCKETS`/`matchesPower`,
+  `matchesType`, `matchesSupertype`) live here **because two pages filter on them** and a list that
+  drifted from its matcher would label an option with a count for something else. Both stat
+  matchers exclude a **null** stat rather than reading it as 0 — the 311 cards with no power
+  concept must not answer to the `0` bucket that 542 real zero-power cards already own.
 - Three indexes are built once in `state.jsx` and passed through context rather than recomputed per
   filter pass: `ownedIndex` (`buildOwnedIndex`, folds owned copies across printings),
   `keywordIndex` (`buildKeywordIndex`, parses keywords out of effect text), and `inDeckIndex`
@@ -111,8 +116,9 @@ external sources so the browser doesn't hit CORS.
   CSS symbols. Icon codes are `rb_might`, `rb_exhaust`, `rb_energy_<n>` and `rb_rune_<domain>`
   (plus `rb_rune_rainbow`, "a rune of any domain"). Two traps: `[&gt;]` and `[&gt;&gt;]` are
   bracketed **arrows**, not keywords, and reminder text inside `<em>` still carries icon codes, so
-  an `em` part holds parsed parts rather than a string. Everything is data — the reference art in
-  [icons/](icons/) is still unused, the symbols are drawn in CSS.
+  an `em` part holds parsed parts rather than a string. The symbols are **half art, half CSS**:
+  `rb_rune_<domain>` and `rb_exhaust` render the bundled PNGs (through `DomainIcon` and `TAP_ICON`),
+  while `rb_might` and `rb_energy_<n>` are still drawn in CSS.
 - [client/src/lib/tags.js](client/src/lib/tags.js) — card tags, stored per **printing id** in
   `data/tags.json` as `{ cardId: ["Keep", …] }`, matching the collection rather than the folded
   deck identity. Three kinds share one filter control but not one display: custom tags and the
@@ -152,6 +158,33 @@ external sources so the browser doesn't hit CORS.
   popup follows a price refresh instead of showing a snapshot. On the tile the art is a `<button>`
   and the star and lock stay **outside** it — nesting them would be invalid HTML and would open the
   popup on every wishlist click. Its owned line folds across printings, unlike the tile behind it.
+- [client/src/lib/icons.js](client/src/lib/icons.js) — the domain art, as three hard-coded maps:
+  `DOMAIN_ICON` (plain, the collection page's filter chips), `DOMAIN_POWER_ICON` (the `2`-suffixed
+  art, power costs and rules-text runes), plus `RAINBOW_ICON` and `TAP_ICON`. The pointers are
+  written out rather than derived because **an ES import cannot be built from a runtime string** —
+  a `` `../assets/icons/${domain}.png` `` template would not be bundled at all. Two components sit
+  on top and nothing else should read the maps directly: `DomainIcon` (one symbol; unknown domains,
+  `Colorless` and `Rainbow` all fall back to the rainbow rune rather than a broken image) and
+  `PowerCost` (one symbol per point of power, the single-domain card's own symbol, rainbow for
+  multi-domain and generic). `PowerCost` renders **nothing** at power 0 or null, so an empty slot
+  beside the energy cost is correct rather than a missing value.
+- [client/src/components/DeckFilterModal.jsx](client/src/components/DeckFilterModal.jsx) — the deck
+  builder's filters, as a dialog rather than the bar above the pool. Every option carries a **live
+  match count**: what picking it would leave with every *other* filter still applied. The page
+  computes all of them in **one pass** (`filterGroups` + `poolCounts` in
+  [DeckBuilderPage](client/src/pages/DeckBuilderPage.jsx)) — a card failing no group counts toward
+  every group, one failing exactly one group counts only toward that group, two failures toward
+  none. Recomputing the pool once per option would be ~40 passes over ~940 cards per keystroke.
+  Counts bucket **`cardIdentity`**, not cards, so they agree with the deduped pool where the six
+  runes collapse from their four reprints. Four things worth knowing before changing it:
+  the modal's card **TYPE** control (Gear/Spell/Unit) is not the pool tab strip — that strip is
+  zone-oriented and decides which zone a click adds to, and the two compose; the domain row
+  **follows the legend** (its two domains, all six with none) and prunes a selection the new legend
+  cannot have; clearing the legend hides TYPE/ENERGY/POWER/MIGHT/RARITY but **keeps their values**,
+  so the modal names the stranded ones rather than filtering from controls that are off screen; and
+  `atLimitIds` (behind "Available to add") is built only while that toggle is on **or** the modal is
+  open, which is what stops the pool recomputing on every add and remove — so its predicate has to
+  read the toggle, not the set's presence.
 - Pages under [client/src/pages/](client/src/pages/) hold their own UI state and filtering;
   [client/src/styles.css](client/src/styles.css) is one global stylesheet (no CSS modules, no
   component library). The deck panel's group/sort controls are session-only page state, and the
@@ -283,9 +316,15 @@ from `cards`: surplus only exists for what you own, so the loop is over the owne
 
 ## Notes
 
-- Card images are hot-linked from the DotGG CDN via `card.image` and nothing is bundled.
-  [icons/](icons/) holds reference assets from the design phase that are **not** currently
-  referenced by any code. There is no `client/public/`.
+- Card images are hot-linked from the DotGG CDN via `card.image` and nothing is bundled. The
+  **domain art is the exception**: [icons/](icons/) holds the 1000×1000 originals, which sit
+  outside Vite's root (`root: 'client'`) and so cannot be imported. `scripts/resize-icons.ps1`
+  downscales the 14 the UI uses into `client/src/assets/icons/`, which is where every import points
+  and what Vite hashes into `dist/`. Adding an icon means adding it in both places. Each 64px file
+  is under Vite's 4KB `assetsInlineLimit`, so by default all fourteen would be base64'd into the
+  main JS chunk (~52KB, re-downloaded on every app change); [vite.config.js](vite.config.js) opts
+  that one folder out so they stay hashed files the browser caches once. There is no
+  `client/public/`.
 - Deliberately out of scope (previously decided against): binders, product/sealed tracking, card
   scanning, playtesting and opening-hand tools.
 - The DotGG API exposes no **power** stat — its `cost` is the *energy* (generic) cost, and there
@@ -319,34 +358,10 @@ from `cards`: surplus only exists for what you own, so the loop is over the owne
 
 ## TODO:
 
-### **POWER INTEGRATION**
-Note to Agent: tell me if the png format is slow/clunky for this purpose
-
-<u>Icon rules (replace the colored diamonds):</u>
-
-1. In text icons use the domain symbol ending in 2 (i.e. icons\Chaos2.png)
-2. For generic power and multi domain power use the rainbow symbol icons\RainbowRune.png.
-
-**Preview Card**
-- Power is added as a number next to energy and before might
-- In text icons \[rb_rune_\{domain\}\] use the domain symbol ending in 2 (i.e. icons\Chaos2.png)
-- For generic power \[rb_rune_rainbow\] and multi domain power use the rainbow symbol icons\RainbowRune.png.
-- \[rb_exhaust\] should be represented by icons\Tap.png
-
-**Deckbuilder**
-- Power filter added
-- Currently, each card has a diamond icon to show it's domains in line with the count. Change this to show the power cost using the icons in icons folder. Specifically the domain icons that end with "2" in the file name For example, "Rebuke" OGN-172 should show two chaos symbols at icons\Chaos2.png. For cards that have multiple domains, use the rainbow symbol icons\RainbowRune.png. 
-- Filter UI is currently cluttered. 
-  - Update to match example\deckbuilder_filterui.png. 
-  - Note that domain filter should match the selected legend. The domain icon should be the same as used for power cost.
-  - When a legend is not selected, the UI should match example\deckbuilder_filterui_nolegend.png
-  - Don't implement bookmarks, instead replace that toggle with the owned cards toggle.
-
-**Collection**
-- Add power filter
-- Supertype should be a separate filter from type. 
-- Replace the letter + color circle currently used for domain filter with the png icons without the "2" suffix. i.e. icons\Chaos.png. No need to algorithmically do this, hard code the pointer.
-- Lock the filter/search bar so that when the user scrolls it stays at the top
-
-**Surplus**
-- Fix text alignment for the "Hide Keep -tagged". Should say "Hide Keeps"
+_Nothing outstanding._ The power integration is complete: the stat is sourced and merged, the
+colored diamonds are gone everywhere in favour of the domain art, the card detail popup shows
+Power beside Energy, both the collection page and the deck builder filter on it, and the deck
+builder's filters live in a modal. Two decisions from that work are worth not re-litigating —
+**bookmarks were deliberately not built** (the slot the mockup gave them carries the owned-only
+toggle instead), and the deck-builder legality control kept **both** Legal-only and Banned-only
+toggles, because the select it replaced was the only way to see the 13 banned cards.

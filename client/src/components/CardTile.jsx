@@ -67,6 +67,7 @@ export default function CardTile({
   tagSuggestions = [],
   onAddTag,
   onRemoveTag,
+  onExpand,
 }) {
   const normal = entry?.normal || 0;
   const foil = entry?.foil || 0;
@@ -77,13 +78,23 @@ export default function CardTile({
   return (
     <div className={`card-tile ${owned ? 'owned' : ''}`}>
       <div className={`card-img-wrap ${owned ? '' : 'not-owned'}`}>
-        <img
-          className="card-img"
-          src={card.image}
-          alt={card.name}
-          loading="lazy"
-          decoding="async"
-        />
+        {/* The art opens the read-only detail popup. The star and lock sit
+            outside this button — a button inside a button is invalid HTML and
+            their clicks would open the popup as well. */}
+        <button
+          className="card-img-btn"
+          title={`${card.name} — view card details`}
+          onClick={() => onExpand?.(card.id)}
+        >
+          <img
+            className="card-img"
+            src={card.image}
+            alt={card.name}
+            loading="lazy"
+            decoding="async"
+          />
+          <span className="expand-hint">⤢</span>
+        </button>
         {card.banned && <span className="banned-tag">BANNED</span>}
         <button
           className={`wish-btn ${wishlisted ? 'on' : ''}`}

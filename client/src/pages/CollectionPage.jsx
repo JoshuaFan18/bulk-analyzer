@@ -4,6 +4,7 @@ import CardTile from '../components/CardTile.jsx';
 import StatsPanel from '../components/StatsPanel.jsx';
 import ImportDialog from '../components/ImportDialog.jsx';
 import RapidEntryDialog from '../components/RapidEntryDialog.jsx';
+import CardDetailModal from '../components/CardDetailModal.jsx';
 import Modal from '../components/Modal.jsx';
 import { exportDotGg } from '../lib/importExport.js';
 import { downloadText } from '../lib/download.js';
@@ -52,6 +53,7 @@ const DEFAULT_FILTERS = {
 export default function CollectionPage() {
   const {
     cards,
+    cardsById,
     collection,
     wishlist,
     setQty,
@@ -72,6 +74,9 @@ export default function CollectionPage() {
   const [showImport, setShowImport] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const [showRapid, setShowRapid] = useState(false);
+  // The popup holds the card id, not the card, so it follows a price refresh
+  // instead of showing a snapshot taken when it opened.
+  const [detailId, setDetailId] = useState(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const sentinelRef = useRef(null);
 
@@ -154,7 +159,8 @@ export default function CollectionPage() {
     <div>
       <h1 className="page-title">My Collection</h1>
       <p className="page-sub">
-        Track your Riftbound collection, its market value, and completion progress.
+        Track your Riftbound collection, its market value, and completion progress. Click a card's
+        art to open the full card.
       </p>
 
       <div className="filter-bar">
@@ -361,6 +367,7 @@ export default function CollectionPage() {
                 tags={displayTags(card.id, { tags, wishlist, inDeckIndex })}
                 onAddTag={addCardTag}
                 onRemoveTag={removeCardTag}
+                onExpand={setDetailId}
               />
             ))}
           </div>
@@ -373,6 +380,9 @@ export default function CollectionPage() {
         {showStats && <StatsPanel cards={cards} collection={collection} />}
       </div>
 
+      {detailId && (
+        <CardDetailModal card={cardsById.get(detailId)} onClose={() => setDetailId(null)} />
+      )}
       {showRapid && <RapidEntryDialog onClose={() => setShowRapid(false)} />}
       {showImport && <ImportDialog onClose={() => setShowImport(false)} />}
       {showExport && <ExportDialog onClose={() => setShowExport(false)} />}

@@ -146,9 +146,12 @@ external sources so the browser doesn't hit CORS.
   never-silently-change rule `unmatched` follows. The Python converter has no card data, so it
   cannot do this — a file it produces still gets routed when imported.
 - [client/src/components/CardDetailModal.jsx](client/src/components/CardDetailModal.jsx) — the
-  full-card popup behind the ⤢ button on every deck panel row. Deliberately **read-only**: it is a
-  reference view, so nothing in it edits the deck or the collection. It takes the card id rather
-  than the card, so the popup follows a price refresh instead of a snapshot.
+  full-card popup, opened from the ⤢ button on every deck panel row and from the card art on every
+  collection tile. Deliberately **read-only**: it is a reference view, so nothing in it edits the
+  deck or the collection. Both call sites hold the card **id** rather than the card, so an open
+  popup follows a price refresh instead of showing a snapshot. On the tile the art is a `<button>`
+  and the star and lock stay **outside** it — nesting them would be invalid HTML and would open the
+  popup on every wishlist click. Its owned line folds across printings, unlike the tile behind it.
 - Pages under [client/src/pages/](client/src/pages/) hold their own UI state and filtering;
   [client/src/styles.css](client/src/styles.css) is one global stylesheet (no CSS modules, no
   component library). The deck panel's group/sort controls are session-only page state, and the

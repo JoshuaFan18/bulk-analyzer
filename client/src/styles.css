@@ -1009,9 +1009,24 @@ details.panel summary {
 }
 
 /* ---- Deck builder ---- */
+.builder-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.builder-header .deck-actions {
+  margin-top: 0;
+  justify-content: flex-end;
+}
+
 .builder-layout {
   display: grid;
-  grid-template-columns: 1fr 360px;
+  /* The deck panel holds card thumbnails two abreast, so it is wider than a
+     plain list would need. minmax(0, 1fr) keeps the pool from overflowing. */
+  grid-template-columns: minmax(0, 1fr) 460px;
   gap: 16px;
   align-items: start;
 }
@@ -1149,53 +1164,238 @@ details.panel summary {
   color: var(--red);
 }
 
-.deck-line {
+/* Deck panel rows: thumbnail, stepper, and the bench/side/main ladder arrows */
+.deck-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 6px;
+}
+
+.deck-card {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+  padding: 5px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+/* A card id the database does not have — an old or hand-edited deck file */
+.deck-card.missing {
+  border-color: var(--red);
+}
+
+.dc-thumb {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 3px 4px;
-  border-radius: 4px;
-  font-size: 13px;
-}
-
-.deck-line:hover {
-  background: var(--bg-3);
-}
-
-.deck-line .cost {
-  background: var(--bg-3);
-  border-radius: 4px;
-  min-width: 20px;
-  text-align: center;
-  font-size: 11px;
-  padding: 1px 0;
-  color: var(--text-dim);
-}
-
-.deck-line .nm {
-  flex: 1;
-  white-space: nowrap;
+  justify-content: center;
+  width: 58px;
+  min-width: 58px;
+  height: 44px;
+  padding: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  cursor: default;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-2);
+  color: var(--text-dim);
+  cursor: zoom-in;
 }
 
-.deck-line .nm.missing {
-  color: var(--red);
+.dc-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Riftbound art sits in the upper half of the frame, so a landscape crop
+     taken from there shows the card rather than its rules box. */
+  object-position: center 24%;
 }
 
-.deck-line button {
-  width: 20px;
+.dc-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.dc-steps button {
+  width: 22px;
   height: 20px;
   padding: 0;
   font-size: 12px;
   line-height: 1;
 }
 
-.deck-line .lc {
-  min-width: 18px;
-  text-align: center;
+.dc-main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+}
+
+.dc-name {
+  font-size: 12.5px;
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.deck-card.missing .dc-name {
+  color: var(--red);
+}
+
+.dc-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dc-count {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dc-might {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.dc-spacer {
+  flex: 1;
+}
+
+.dc-btn {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  font-size: 11px;
+  line-height: 1;
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-dim);
+}
+
+.dc-btn:hover:not(:disabled) {
+  background: var(--bg-2);
+  color: var(--text);
+}
+
+.dc-btn:disabled {
+  opacity: 0.25;
+}
+
+.deck-arrange {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.deck-arrange select {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  padding: 4px 6px;
+}
+
+.deck-arrange .dir-btn {
+  padding: 4px 10px;
+}
+
+/* ---- Card symbols and rules text ---- */
+.rb-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: -2px;
+}
+
+.rb-icon.energy {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-2);
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.rb-icon.might {
+  color: var(--accent);
+  font-size: 11px;
+}
+
+.rb-icon.exhaust {
+  color: var(--accent-2);
+}
+
+.rb-icon.rune {
+  width: 10px;
+  height: 10px;
+  margin: 0 2px;
+  border-radius: 2px;
+  transform: rotate(45deg);
+}
+
+/* "a rune of any domain" */
+.rb-icon.rune.rainbow {
+  background: conic-gradient(#e05252, #e0913d, #e6cf6b, #3ec6a8, #4f8fe6, #a66be6, #e05252);
+}
+
+.rb-icon.unknown {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.rules-text {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.rules-line.bullet {
+  position: relative;
+  padding-left: 14px;
+}
+
+.rules-line.bullet::before {
+  content: '•';
+  position: absolute;
+  left: 3px;
+  color: var(--text-dim);
+}
+
+.rules-reminder {
+  color: var(--text-dim);
+}
+
+.rules-arrow {
+  color: var(--accent);
+  padding: 0 3px;
+}
+
+.kw-badge {
+  display: inline-block;
+  background: var(--green);
+  color: #06180f;
+  border-radius: 3px;
+  padding: 0 5px;
+  margin-right: 1px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
 }
 
 .zone-note {
@@ -1227,22 +1427,190 @@ details.panel summary {
 .deck-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
   margin-top: 12px;
 }
 
-.legend-slot {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  background: var(--bg-3);
-  border-radius: 6px;
-  padding: 8px;
+.save-state {
+  font-size: 12px;
 }
 
-.legend-slot img {
-  width: 56px;
+/* ---- Card detail popup ---- */
+.modal.card-detail {
+  width: min(1000px, 96vw);
+}
+
+.card-detail h3 {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.cd-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.cd-name {
+  font-size: 20px;
+}
+
+.cd-type {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.banned-pill {
+  background: rgba(170, 40, 40, 0.92);
+  color: #fff;
   border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.cd-close {
+  padding: 2px 8px;
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-dim);
+}
+
+.cd-body {
+  display: grid;
+  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.cd-art img {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.cd-info {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cd-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.cd-stats {
+  display: flex;
+  gap: 32px;
+}
+
+.cd-stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.cd-section.divided,
+.cd-links {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.cd-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px 20px;
+}
+
+.cd-fact .cd-label {
+  margin-bottom: 1px;
+}
+
+.cd-value {
+  display: block;
+  font-size: 13px;
+}
+
+.cd-flavor {
+  border-left: 2px solid var(--border);
+  padding-left: 12px;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--text-dim);
+}
+
+.cd-errata {
+  font-size: 13px;
+  color: #e0b052;
+}
+
+.cd-owned {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.cd-none {
+  font-size: 12px;
+  font-style: italic;
+}
+
+.cd-links {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.cd-buy {
+  display: flex;
+  flex: 1;
+  min-width: 220px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 12px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.cd-buy:hover {
+  border-color: var(--accent);
+}
+
+.cd-price {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.cd-prices {
+  font-size: 11px;
+  margin-top: -6px;
+}
+
+@media (max-width: 760px) {
+  .cd-body {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* collection sync list */

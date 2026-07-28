@@ -50,9 +50,11 @@ external sources so the browser doesn't hit CORS.
   three-step change that is easy to half-do: add it here, **restart the Express process** (Vite
   hot-reloads, node does not), then `POST /api/prices/refresh` to rewrite the cache. Skipping
   either of the last two leaves the field `undefined` and the new filter silently matching
-  nothing. Unused-but-available fields include `flavor`, `cmPrice`/`cmFoilPrice` (Cardmarket, EUR),
-  the `delta*` price-movement columns, `marketIds`/`cmurl` (store links), and `hasback`. `cycle`
-  is empty for every card.
+  nothing. Unused-but-available fields include `cmPrice`/`cmFoilPrice` (Cardmarket, EUR),
+  the `delta*` price-movement columns, `cmurl` (the Cardmarket link), and `hasback`. `cycle`
+  is empty for every card. `flavor` and `marketIds` (mapped as `marketId`, the TCGplayer product
+  id behind `tcgPlayerUrl`) are read only by the card detail popup, and both are missing on a
+  large minority of printings — 710 have no flavour text, 121 no market id.
 - [server/riftdecks.js](server/riftdecks.js) — HTML scraping of riftdecks.com. Two shapes:
   legends parsed with cheerio out of `tr[data-href*="/legends/"]` (`data-metashare`,
   `data-winrate`, `data-totaldecks` attributes), and per-legend card usage regex-extracted from
@@ -96,7 +98,21 @@ external sources so the browser doesn't hit CORS.
   `{ legend, champion, battlefields, runes, main, side, bench }` where the zone fields are
   `{cardId: count}` maps; `ZONES` holds the limits and `addCard` enforces them (silently returning
   the unchanged deck when a limit is hit). `deckEntries()` is the canonical way to iterate a deck.
-  Also owns the plain-text deck format (bare `Section:` headers + `3 Card Name`).
+  Also owns the plain-text deck format (bare `Section:` headers + `3 Card Name`), and
+  `moveCard(deck, cardId, zone, ±1)`, which walks one copy along `ZONE_LADDER`
+  (`bench → side → main`) behind the deck panel's ↑/↓ buttons. It **removes before it adds**, so
+  the destination's limit check does not count the copy the move is vacating, and returns the deck
+  untouched when `addCard` refuses — a blocked move must never eat the copy it was carrying.
+  Battlefields and Runes sit outside the ladder and get no arrows. `canMoveCard` is the same call
+  used to disable the button rather than offer one that does nothing.
+- [client/src/lib/cardText.js](client/src/lib/cardText.js) — rules text is light HTML with two
+  kinds of inline token, and `parseCardText` turns one `effect` string into blocks of parts so
+  [CardText](client/src/components/CardText.jsx) can render keywords as badges and icon codes as
+  CSS symbols. Icon codes are `rb_might`, `rb_exhaust`, `rb_energy_<n>` and `rb_rune_<domain>`
+  (plus `rb_rune_rainbow`, "a rune of any domain"). Two traps: `[&gt;]` and `[&gt;&gt;]` are
+  bracketed **arrows**, not keywords, and reminder text inside `<em>` still carries icon codes, so
+  an `em` part holds parsed parts rather than a string. Everything is data — the reference art in
+  [icons/](icons/) is still unused, the symbols are drawn in CSS.
 - [client/src/lib/tags.js](client/src/lib/tags.js) — card tags, stored per **printing id** in
   `data/tags.json` as `{ cardId: ["Keep", …] }`, matching the collection rather than the folded
   deck identity. Three kinds share one filter control but not one display: custom tags and the
@@ -129,9 +145,15 @@ external sources so the browser doesn't hit CORS.
   what the file said, and `converted` reports every reroute to the dialog, the same
   never-silently-change rule `unmatched` follows. The Python converter has no card data, so it
   cannot do this — a file it produces still gets routed when imported.
+- [client/src/components/CardDetailModal.jsx](client/src/components/CardDetailModal.jsx) — the
+  full-card popup behind the ⤢ button on every deck panel row. Deliberately **read-only**: it is a
+  reference view, so nothing in it edits the deck or the collection. It takes the card id rather
+  than the card, so the popup follows a price refresh instead of a snapshot.
 - Pages under [client/src/pages/](client/src/pages/) hold their own UI state and filtering;
   [client/src/styles.css](client/src/styles.css) is one global stylesheet (no CSS modules, no
-  component library).
+  component library). The deck panel's group/sort controls are session-only page state, and the
+  sort keeps cards with no value for the chosen key (a spell has no might) **last in both
+  directions** rather than sorting them as zero.
 
 ### Printings, prices, and ownership
 

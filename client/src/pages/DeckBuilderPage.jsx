@@ -5,6 +5,7 @@ import { useApp } from '../state.jsx';
 import Modal from '../components/Modal.jsx';
 import DeckStats from '../components/DeckStats.jsx';
 import DeckCollectionList from '../components/DeckCollectionList.jsx';
+import CardDetailModal from '../components/CardDetailModal.jsx';
 import {
   COLORS,
   COLOR_HEX,
@@ -15,6 +16,7 @@ import {
   championMatchesLegend,
   championOf,
   dedupeByIdentity,
+  effectivePrice,
   isBasePrinting,
   isToken,
   matchesMight,
@@ -26,10 +28,13 @@ import {
 import {
   MAX_SIGNATURE_CARDS,
   ZONES,
+  ZONE_LADDER,
   addCard,
+  canMoveCard,
   emptyDeck,
   exportDeckText,
   mainTarget,
+  moveCard,
   parseDeckText,
   removeCard,
   deckValidation,
@@ -47,6 +52,23 @@ const POOL_TABS = [
 ];
 
 const PAGE_SIZE = 60;
+
+// How the deck panel arranges its rows. Grouping applies to the main deck,
+// which is the only zone big enough to need it; the sort applies to every zone.
+const GROUP_MODES = [
+  { id: 'type', label: 'By Type' },
+  { id: 'energy', label: 'By Energy' },
+  { id: 'domain', label: 'By Domain' },
+  { id: 'none', label: 'No Grouping' },
+];
+
+const SORT_MODES = [
+  { id: 'energy', label: 'Energy' },
+  { id: 'name', label: 'Name' },
+  { id: 'might', label: 'Might' },
+  { id: 'price', label: 'Price' },
+  { id: 'count', label: 'Copies' },
+];
 
 export default function DeckBuilderPage() {
   const { id } = useParams();
@@ -73,6 +95,12 @@ export default function DeckBuilderPage() {
   const [showImport, setShowImport] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const [saveState, setSaveState] = useState('');
+  const [groupMode, setGroupMode] = useState('type');
+  const [sortMode, setSortMode] = useState('energy');
+  const [sortDir, setSortDir] = useState(1);
+  // The card the ⤢ button opened. Held as an id so the popup keeps following
+  // the card data rather than a snapshot taken when it opened.
+  const [detailId, setDetailId] = useState(null);
   const sentinelRef = useRef(null);
 
   useEffect(() => {
@@ -201,11 +229,31 @@ export default function DeckBuilderPage() {
 
   return (
     <div>
-      <h1 className="page-title">Deck Builder</h1>
-      <p className="page-sub">
-        Click a card to add it. Right-click a card in the pool (or use − in the deck panel) to
-        remove it.
-      </p>
+      <div className="builder-header">
+        <div>
+          <h1 className="page-title">Deck Builder</h1>
+          <p className="page-sub">
+            Click a card to add it, right-click to remove it. In the deck panel ↑ and ↓ move a copy
+            along bench → sideboard → main deck, and ⤢ opens the full card.
+          </p>
+        </div>
+
+        <div className="deck-actions">
+          <button className="primary" onClick={save}>
+            {deck.id ? 'Save deck' : 'Save as new deck'}
+          </button>
+          {deck.id && <button onClick={() => navigate(`/decks/view/${deck.id}`)}>View</button>}
+          <button onClick={() => setShowImport(true)}>Import</button>
+          <button onClick={() => setShowExport(true)}>Export</button>
+          <button
+            className="danger"
+            onClick={() => setDeck((d) => ({ ...emptyDeck(), id: d.id, name: d.name }))}
+          >
+            Clear
+          </button>
+          {saveState && <span className="muted save-state">{saveState}</span>}
+        </div>
+      </div>
 
       <div className="builder-layout">
         <div>
@@ -418,10 +466,15 @@ export default function DeckBuilderPage() {
                   <span className={`cnt ${deck.legend ? 'ok' : ''}`}>{deck.legend ? 1 : 0}/1</span>
                 </div>
                 {legendCard ? (
-                  <SlotLine
-                    card={legendCard}
-                    onRemove={() => setDeck((d) => removeCard(d, legendCard.id, 'legend'))}
-                  />
+                  <div className="deck-cards">
+                    <DeckCardRow
+                      card={legendCard}
+                      cardId={legendCard.id}
+                      count={1}
+                      onRemove={() => setDeck((d) => removeCard(d, legendCard.id, 'legend'))}
+                      onExpand={() => setDetailId(legendCard.id)}
+                    />
+                  </div>
                 ) : (
                   <div className="empty-zone">Pick a Legend from the pool</div>
                 )}
@@ -435,10 +488,15 @@ export default function DeckBuilderPage() {
                   </span>
                 </div>
                 {championCard ? (
-                  <SlotLine
-                    card={championCard}
-                    onRemove={() => setDeck((d) => removeCard(d, championCard.id, 'champion'))}
-                  />
+                  <div className="deck-cards">
+                    <DeckCardRow
+                      card={championCard}
+                      cardId={championCard.id}
+                      count={1}
+                      onRemove={() => setDeck((d) => removeCard(d, championCard.id, 'champion'))}
+                      onExpand={() => setDetailId(championCard.id)}
+                    />
+                  </div>
                 ) : (
                   <div className="empty-zone">
                     {legendCard
@@ -455,8 +513,42 @@ export default function DeckBuilderPage() {
                   zoneDef={zoneDef}
                   deck={deck}
                   cardsById={cardsById}
+                  groupMode={zoneId === 'main' ? groupMode : 'none'}
+                  sortMode={sortMode}
+                  sortDir={sortDir}
+                  controls={
+                    zoneId === 'main' ? (
+                      <div className="deck-arrange">
+                        <select value={groupMode} onChange={(e) => setGroupMode(e.target.value)}>
+                          {GROUP_MODES.map((g) => (
+                            <option key={g.id} value={g.id}>
+                              {g.label}
+                            </option>
+                          ))}
+                        </select>
+                        <select value={sortMode} onChange={(e) => setSortMode(e.target.value)}>
+                          {SORT_MODES.map((s) => (
+                            <option key={s.id} value={s.id}>
+                              ⇅ {s.label}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          className="dir-btn"
+                          title={sortDir === 1 ? 'Ascending' : 'Descending'}
+                          onClick={() => setSortDir((d) => -d)}
+                        >
+                          {sortDir === 1 ? '↑' : '↓'}
+                        </button>
+                      </div>
+                    ) : null
+                  }
                   onAdd={(card) => setDeck((d) => addCard(d, card, zoneId, cardsById))}
                   onRemove={(cardId) => setDeck((d) => removeCard(d, cardId, zoneId))}
+                  onMove={(cardId, dir) =>
+                    setDeck((d) => moveCard(d, cardId, zoneId, dir, cardsById))
+                  }
+                  onExpand={setDetailId}
                 />
               ))}
 
@@ -481,24 +573,6 @@ export default function DeckBuilderPage() {
 
           {panelTab === 'stats' && <DeckStats deck={deck} />}
           {panelTab === 'collection' && <DeckCollectionList deck={deck} />}
-
-          <div className="deck-actions">
-            <button className="primary" onClick={save}>
-              {deck.id ? 'Save deck' : 'Save as new deck'}
-            </button>
-            {deck.id && (
-              <button onClick={() => navigate(`/decks/view/${deck.id}`)}>View</button>
-            )}
-            <button onClick={() => setShowImport(true)}>Import</button>
-            <button onClick={() => setShowExport(true)}>Export</button>
-            <button
-              className="danger"
-              onClick={() => setDeck((d) => ({ ...emptyDeck(), id: d.id, name: d.name }))}
-            >
-              Clear
-            </button>
-          </div>
-          {saveState && <div className="muted" style={{ marginTop: 6 }}>{saveState}</div>}
         </aside>
       </div>
 
@@ -515,6 +589,9 @@ export default function DeckBuilderPage() {
           </div>
         </Modal>
       )}
+      {detailId && (
+        <CardDetailModal card={cardsById.get(detailId)} onClose={() => setDetailId(null)} />
+      )}
       {showImport && (
         <ImportDeckDialog
           cardsById={cardsById}
@@ -529,24 +606,104 @@ export default function DeckBuilderPage() {
   );
 }
 
-function SlotLine({ card, onRemove }) {
+// One card in the deck panel: thumbnail, a stepper, and the two ladder arrows.
+// A card id a deck names but the database does not have still renders, minus
+// the parts that need card data — an import must never lose a line silently.
+function DeckCardRow({
+  card,
+  cardId,
+  count,
+  onAdd,
+  onRemove,
+  onMove,
+  canUp,
+  canDown,
+  onExpand,
+}) {
+  const name = card?.name || cardId;
+  const domains = (card?.colors || []).filter((c) => c !== 'Colorless');
   return (
-    <div className="legend-slot">
-      <img src={card.image} alt={card.name} loading="lazy" />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div className="tile-name">{card.name}</div>
-        <div className="muted" style={{ fontSize: 11 }}>
-          {card.id}
+    <div className={`deck-card ${card ? '' : 'missing'}`}>
+      {card ? (
+        <button className="dc-thumb" onClick={onExpand} title={`${name} — click to enlarge`}>
+          <img src={card.image} alt={name} loading="lazy" decoding="async" />
+        </button>
+      ) : (
+        <span className="dc-thumb empty">?</span>
+      )}
+
+      <div className="dc-steps">
+        {onAdd && (
+          <button onClick={onAdd} title="Add a copy" disabled={!card}>
+            +
+          </button>
+        )}
+        <button onClick={onRemove} title="Remove a copy">
+          −
+        </button>
+      </div>
+
+      <div className="dc-main">
+        <div className="dc-name" title={card ? name : `${cardId} — not in the card database`}>
+          {name}
+        </div>
+        <div className="dc-meta">
+          <span className="dc-count">{count}x</span>
+          {card?.cost != null && (
+            <span className="rb-icon energy" title={`${card.cost} energy`}>
+              {card.cost}
+            </span>
+          )}
+          {card?.might != null && (
+            <span className="dc-might" title={`${card.might} might`}>
+              {card.might}
+              <span className="rb-icon might">⚔</span>
+            </span>
+          )}
+          {domains.map((c) => (
+            <span
+              key={c}
+              className="rb-icon rune"
+              style={{ background: COLOR_HEX[c] }}
+              title={`${c} domain`}
+            />
+          ))}
+          <span className="dc-spacer" />
+          {onMove && (
+            <>
+              <button
+                className="dc-btn"
+                disabled={!canUp}
+                title="Move a copy up: bench → sideboard → main deck"
+                onClick={() => onMove(cardId, 1)}
+              >
+                ↑
+              </button>
+              <button
+                className="dc-btn"
+                disabled={!canDown}
+                title="Move a copy down: main deck → sideboard → bench"
+                onClick={() => onMove(cardId, -1)}
+              >
+                ↓
+              </button>
+            </>
+          )}
+          {card && (
+            <button className="dc-btn" title="Enlarge" onClick={onExpand}>
+              ⤢
+            </button>
+          )}
         </div>
       </div>
-      <button onClick={onRemove}>✕</button>
     </div>
   );
 }
 
-// Main-deck grouping. The trailing bucket catches anything an imported deck put
-// in the main zone that is not one of the three normal types, so nothing is
-// silently missing from the list.
+// Main-deck grouping by type. The trailing bucket catches anything an imported
+// deck put in the main zone that is not one of the three normal types, so
+// nothing is silently missing from the list.
+const MAIN_TYPES = ['Unit', 'Spell', 'Gear'];
 const MAIN_GROUPS = [
   { label: 'Units', types: ['Unit'] },
   { label: 'Spells', types: ['Spell'] },
@@ -554,41 +711,85 @@ const MAIN_GROUPS = [
   { label: 'Other', types: null },
 ];
 
-function ZoneList({ zoneId, zoneDef, deck, cardsById, onAdd, onRemove }) {
-  const entries = Object.entries(deck[zoneId] || {});
+// Sort keys per row. A card with no value for the chosen key (a spell has no
+// might, an unpriced printing no price) sorts last in both directions rather
+// than pretending to be zero, the same rule lib/cards.js applies to prices.
+const ROW_KEY = {
+  energy: (r) => r.card?.cost ?? null,
+  might: (r) => r.card?.might ?? null,
+  price: (r) => (r.card ? effectivePrice(r.card) : null),
+  count: (r) => r.n,
+  name: () => null,
+};
+
+function rowName(r) {
+  return r.card?.name || r.cardId;
+}
+
+function rowSorter(mode, dir) {
+  const key = ROW_KEY[mode] || ROW_KEY.energy;
+  return (a, b) => {
+    const ka = key(a);
+    const kb = key(b);
+    if (ka == null && kb != null) return 1;
+    if (kb == null && ka != null) return -1;
+    if (ka != null && kb != null && ka !== kb) return (ka - kb) * dir;
+    return rowName(a).localeCompare(rowName(b)) * (mode === 'name' ? dir : 1);
+  };
+}
+
+function groupRows(rows, mode, dir) {
+  if (mode === 'type') {
+    return MAIN_GROUPS.map(({ label, types }) => ({
+      label,
+      rows: rows.filter((r) =>
+        types ? types.includes(r.card?.type) : !MAIN_TYPES.includes(r.card?.type)
+      ),
+    })).filter((g) => g.rows.length > 0);
+  }
+  if (mode === 'energy' || mode === 'domain') {
+    const labelOf =
+      mode === 'energy'
+        ? (r) => (r.card?.cost == null ? 'No energy' : `Energy ${r.card.cost}`)
+        : (r) => (r.card?.colors || []).join(' / ') || 'Colorless';
+    const buckets = new Map();
+    for (const r of rows) {
+      const label = labelOf(r);
+      if (!buckets.has(label)) buckets.set(label, []);
+      buckets.get(label).push(r);
+    }
+    const groups = [...buckets.entries()].map(([label, rs]) => ({ label, rows: rs }));
+    // "No energy" starts with N, so it lands after every "Energy n" bucket.
+    groups.sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));
+    if (mode === 'energy' && dir < 0) groups.reverse();
+    return groups;
+  }
+  return [{ label: null, rows }];
+}
+
+function ZoneList({
+  zoneId,
+  zoneDef,
+  deck,
+  cardsById,
+  groupMode,
+  sortMode,
+  sortDir,
+  controls,
+  onAdd,
+  onRemove,
+  onMove,
+  onExpand,
+}) {
   const count = zoneCount(deck[zoneId]);
   // The champion is one of the 40, so the main zone itself holds 39.
   const max = zoneId === 'main' ? mainTarget(deck) : zoneDef.max;
   const status = max == null ? '' : count === max ? 'ok' : count > max ? 'over' : '';
-  const sorted = entries
+  const onLadder = ZONE_LADDER.includes(zoneId);
+  const sorted = Object.entries(deck[zoneId] || {})
     .map(([cardId, n]) => ({ card: cardsById.get(cardId), cardId, n }))
-    .sort(
-      (a, b) =>
-        (a.card?.cost ?? 99) - (b.card?.cost ?? 99) ||
-        (a.card?.name || '').localeCompare(b.card?.name || '')
-    );
-
-  const groups =
-    zoneId === 'main'
-      ? MAIN_GROUPS.map(({ label, types }) => ({
-          label,
-          rows: sorted.filter((r) =>
-            types ? types.includes(r.card?.type) : !['Unit', 'Spell', 'Gear'].includes(r.card?.type)
-          ),
-        })).filter((g) => g.rows.length > 0)
-      : [{ label: null, rows: sorted }];
-
-  const line = ({ card, cardId, n }) => (
-    <div className="deck-line" key={cardId}>
-      <span className="cost">{card?.cost ?? '·'}</span>
-      <span className="nm" title={card?.name || cardId}>
-        {card?.name || cardId}
-      </span>
-      <button onClick={() => onRemove(cardId)}>−</button>
-      <span className="lc">{n}</span>
-      <button onClick={() => card && onAdd(card)}>+</button>
-    </div>
-  );
+    .sort(rowSorter(sortMode, sortDir));
+  const groups = groupRows(sorted, groupMode, sortDir);
 
   return (
     <div className="zone">
@@ -599,6 +800,7 @@ function ZoneList({ zoneId, zoneDef, deck, cardsById, onAdd, onRemove }) {
           {max != null ? `/${max}` : ''}
         </span>
       </div>
+      {controls}
       {zoneId === 'main' && deck.champion && (
         <div className="zone-note">{count + 1}/{ZONES.main.max} with the champion</div>
       )}
@@ -608,10 +810,25 @@ function ZoneList({ zoneId, zoneDef, deck, cardsById, onAdd, onRemove }) {
           {g.label && (
             <div className="deck-group-head">
               <span>{g.label}</span>
-              <span>{g.rows.reduce((s, r) => s + r.n, 0)}</span>
+              <span>{g.rows.reduce((s, r) => s + r.n, 0)} cards</span>
             </div>
           )}
-          {g.rows.map(line)}
+          <div className="deck-cards">
+            {g.rows.map(({ card, cardId, n }) => (
+              <DeckCardRow
+                key={cardId}
+                card={card}
+                cardId={cardId}
+                count={n}
+                onAdd={card ? () => onAdd(card) : null}
+                onRemove={() => onRemove(cardId)}
+                onMove={onLadder ? onMove : null}
+                canUp={onLadder && canMoveCard(deck, cardId, zoneId, 1, cardsById)}
+                canDown={onLadder && canMoveCard(deck, cardId, zoneId, -1, cardsById)}
+                onExpand={() => onExpand(cardId)}
+              />
+            ))}
+          </div>
         </div>
       ))}
     </div>

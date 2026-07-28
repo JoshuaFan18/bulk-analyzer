@@ -245,6 +245,16 @@ export function effectivePrice(card) {
   return null;
 }
 
+// Store and card-database links for the card detail popup. 121 printings carry
+// no TCGplayer product id, so both return null rather than a broken URL.
+export function tcgPlayerUrl(card) {
+  return card?.marketId ? `https://www.tcgplayer.com/product/${card.marketId}` : null;
+}
+
+export function cardPageUrl(card) {
+  return card?.slug ? `https://riftbound.gg/cards/${card.slug}/` : null;
+}
+
 // Natural sort by set then collector number ("OGN-007a" style ids)
 export function defaultCardSort(a, b) {
   if (a.setCode !== b.setCode) return a.setCode.localeCompare(b.setCode);

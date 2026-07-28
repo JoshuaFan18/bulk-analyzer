@@ -138,6 +138,37 @@ export function removeCard(deck, cardId, zone) {
   return next;
 }
 
+// The zones one copy can be promoted or demoted through, worst to best:
+// the bench holds cards you are considering, the sideboard cards you may swap
+// in, the main deck what you actually play. Battlefields and Runes are outside
+// the ladder — a rune has nowhere else it could legally go.
+export const ZONE_LADDER = ['bench', 'side', 'main'];
+
+// Move a single copy one step along the ladder (+1 up, -1 down). Returns the
+// deck unchanged when there is no next zone or the destination is full, so a
+// blocked move never destroys the copy it was carrying.
+export function moveCard(deck, cardId, fromZone, dir, cardsById) {
+  const from = ZONE_LADDER.indexOf(fromZone);
+  const to = ZONE_LADDER[from + dir];
+  if (from === -1 || !to) return deck;
+  if (!deck[fromZone]?.[cardId]) return deck;
+  const card = cardsById?.get(cardId);
+  if (!card) return deck;
+  // Removed first so the destination's limit check counts the copy as having
+  // already left the source: without that, the 3rd copy of a card could never
+  // be moved down and back up.
+  const without = removeCard(deck, cardId, fromZone);
+  const moved = addCard(without, card, to, cardsById);
+  // addCard returns its input untouched when a limit blocks the add.
+  return moved === without ? deck : moved;
+}
+
+// Whether that move would do anything, for disabling the arrow rather than
+// offering a button that silently does nothing.
+export function canMoveCard(deck, cardId, fromZone, dir, cardsById) {
+  return moveCard(deck, cardId, fromZone, dir, cardsById) !== deck;
+}
+
 // Every (cardId, count, zone) entry of a deck, legend and champion included
 export function deckEntries(deck) {
   const out = [];

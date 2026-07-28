@@ -25,6 +25,11 @@ export async function fetchCardsFromApi() {
       slug: get(row, 'slug'),
       name: get(row, 'name'),
       effect: get(row, 'effect') || '',
+      // Flavour text and the TCGplayer product id back the card detail popup.
+      // 710 printings have no flavour and 121 have no market id, so both are
+      // optional everywhere they are read.
+      flavor: get(row, 'flavor') || '',
+      marketId: get(row, 'marketIds') || null,
       colors: get(row, 'color') || [],
       cost: num(get(row, 'cost')),
       type: get(row, 'type') || '',

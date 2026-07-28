@@ -1,0 +1,45 @@
+Legend:
+1 Irelia, Blade Dancer
+
+Champion:
+1 Irelia, Fervent
+
+MainDeck:
+1 Abandon
+2 Akali, Silent
+2 Boots of Swiftness
+2 Charm
+3 Defiant Dance
+3 Defy
+3 Discipline
+2 En Garde
+1 Flash
+2 Guardian Angel
+2 Gust Monk
+1 Not So Fast
+2 Ride the Wind
+3 Scuttle Crab
+2 Star-Crossed
+3 Stellacorn Herder
+1 The Syren
+2 Tideturner
+1 Vex, Apathetic
+1 Zhonya's Hourglass
+
+Battlefields:
+1 Abandoned Hall
+1 Star Spring
+1 Targon's Peak
+
+Runes:
+6 Calm Rune
+6 Chaos Rune
+
+Sideboard:
+1 Adaptatron
+1 Crumbling Sands
+1 Decree of Focus
+2 Gust
+2 Ravenbloom Prefect
+2 Twilight Shroud
+1 Zhonya's Hourglass

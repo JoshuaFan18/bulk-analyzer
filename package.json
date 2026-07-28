@@ -1,0 +1,24 @@
+{
+  "name": "riftbound-manager",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Riftbound TCG collection manager, true bulk analyzer, and deck builder",
+  "scripts": {
+    "dev": "concurrently -k -n server,vite \"node server/index.js\" \"vite\"",
+    "build": "vite build",
+    "start": "node server/index.js"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "express": "^4.21.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.30.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
+    "vite": "^5.4.19"
+  }
+}

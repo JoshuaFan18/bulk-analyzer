@@ -318,9 +318,35 @@ from `cards`: surplus only exists for what you own, so the loop is over the owne
   it catches bad imports and syntax that Vite's hot reload will happily paper over.
 
 ## TODO:
+
+### **POWER INTEGRATION**
+Note to Agent: tell me if the png format is slow/clunky for this purpose
+
+<u>Icon rules (replace the colored diamonds and other symbols):</u>
+
+1. In text icons \[rb_rune_\{domain\}\] use the domain symbol ending in 2 (i.e. icons\Chaos2.png)
+2. For generic power \[rb_rune_rainbow\] and multi domain power use the rainbow symbol icons\RainbowRune.png.
+3. \[rb_exhaust\] should be represented by icons\Tap.png
+
+**Preview Card**
+- Power is added as a number next to energy and before might
+- If power cost is specified
+
 **Deckbuilder**
-- Figure out Deck Code import method — *no sample codes and no documented format yet; needs
-  example codes and their source before anything can be reverse-engineered*
-  - See if you can explore https://piltoverarchive.com/decks and try to use the export deck code
-    function. *Blocked from the CLI: the site returns HTTP 403 to automated fetches, so sample codes
-    have to be pasted in by hand.*
+- Power filter added
+- Currently, each card has a diamond icon to show it's domains in line with the count. Change this to show the power cost using the icons in icons folder. Specifically the domain icons that end with "2" in the file name For example, "Rebuke" OGN-172 should show two chaos symbols at icons\Chaos2.png. For cards that have multiple domains, use the rainbow symbol icons\RainbowRune.png. 
+- Filter UI is currently cluttered. 
+  - Update to match example\deckbuilder_filterui.png. 
+  - Note that domain filter should match the selected legend. The domain icon should be the same as used for power cost.
+  - When a legend is not selected, the UI should match example\deckbuilder_filterui_nolegend.png
+  - Don't implement bookmarks, instead replace that toggle with the owned cards toggle.
+
+**Collection**
+- Add power filter
+- Supertype should be a separate filter from type. 
+- Add Double-sided filter option from dot.gg\
+- Replace the letter + color circle currently used for domain filter with the png icons without the 2 suffix. i.e. icons\Chaos.png. No need to algorithmically do this, hard code the pointer.
+- Lock the filter/search bar so that when the user scrolls it stays at the top
+
+**Surplus**
+- Fix text alignment for the "Hide Keep -tagged". Should say "Hide Keeps"

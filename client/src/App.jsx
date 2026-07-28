@@ -7,6 +7,7 @@ import BulkAnalyzerPage from './pages/BulkAnalyzerPage.jsx';
 import DeckBuilderPage from './pages/DeckBuilderPage.jsx';
 import DecksPage from './pages/DecksPage.jsx';
 import DeckViewerPage from './pages/DeckViewerPage.jsx';
+import ConfigPage from './pages/ConfigPage.jsx';
 
 export default function App() {
   const { loading, error, saving, dismissError } = useApp();
@@ -25,6 +26,7 @@ export default function App() {
             <NavLink to="/bulk-analyzer">True Bulk Analyzer</NavLink>
             <NavLink to="/deckbuilder">Deck Builder</NavLink>
             <NavLink to="/decks">My Decks</NavLink>
+            <NavLink to="/config">Config</NavLink>
           </nav>
           <div className="topbar-status">{saving ? 'Saving…' : ''}</div>
         </div>
@@ -49,6 +51,7 @@ export default function App() {
             <Route path="/deckbuilder/:id" element={<DeckBuilderPage />} />
             <Route path="/decks" element={<DecksPage />} />
             <Route path="/decks/view/:id" element={<DeckViewerPage />} />
+            <Route path="/config" element={<ConfigPage />} />
           </Routes>
         )}
       </main>

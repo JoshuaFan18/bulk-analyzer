@@ -10,6 +10,7 @@ export const useApp = () => useContext(AppContext);
 
 export function AppProvider({ children }) {
   const [cardsPayload, setCardsPayload] = useState(null);
+  const [powerOverlay, setPowerOverlay] = useState({});
   const [collection, setCollection] = useState({});
   const [wishlist, setWishlist] = useState({});
   const [tags, setTags] = useState({});
@@ -18,6 +19,7 @@ export function AppProvider({ children }) {
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [refreshingPrices, setRefreshingPrices] = useState(false);
+  const [importingPower, setImportingPower] = useState(false);
 
   const collectionTimer = useRef(null);
   const wishlistTimer = useRef(null);
@@ -30,13 +32,17 @@ export function AppProvider({ children }) {
       api.getWishlist(),
       api.getTags(),
       api.listDecks(),
+      // The overlay is an enhancement, not a requirement -- an Express process
+      // started before this route existed 404s, and the app must still boot.
+      api.getPower().catch(() => ({ cards: {} })),
     ])
-      .then(([cardsRes, collectionRes, wishlistRes, tagsRes, decksRes]) => {
+      .then(([cardsRes, collectionRes, wishlistRes, tagsRes, decksRes, powerRes]) => {
         setCardsPayload(cardsRes);
         setCollection(collectionRes.cards || {});
         setWishlist(wishlistRes.cards || {});
         setTags(tagsRes.cards || {});
         setDecks(decksRes.decks || []);
+        setPowerOverlay(powerRes.cards || {});
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
@@ -54,11 +60,17 @@ export function AppProvider({ children }) {
   };
 
   // DotGG's feed carries only the ENERGY cost (card.cost). The POWER (colored)
-  // cost is merged in from a static map (scripts/build-power-costs.mjs). It is
+  // cost is merged in from the committed baseline (scripts/build-power-costs.mjs),
+  // with the Config page's import filling any gap it left into data/power.json.
+  // The baseline wins, so a re-import can never rewrite a known value. Power is
   // null for cards with no power concept -- Legends, Battlefields, Runes, tokens.
   const cards = useMemo(
-    () => (cardsPayload?.cards || []).map((c) => ({ ...c, power: POWER_COSTS[c.id] ?? null })),
-    [cardsPayload],
+    () =>
+      (cardsPayload?.cards || []).map((c) => ({
+        ...c,
+        power: POWER_COSTS[c.id] ?? powerOverlay[c.id] ?? null,
+      })),
+    [cardsPayload, powerOverlay],
   );
   const cardsById = useMemo(() => {
     const m = new Map();
@@ -217,6 +229,19 @@ export function AppProvider({ children }) {
     }
   };
 
+  // Resolves power for the cards that still read null and nothing else, so the
+  // request stays small and a known value is never refetched.
+  const importPower = async (ids) => {
+    setImportingPower(true);
+    try {
+      const res = await api.importPower(ids);
+      setPowerOverlay(res.cards || {});
+      return res;
+    } finally {
+      setImportingPower(false);
+    }
+  };
+
   const value = {
     cards,
     cardsById,
@@ -232,6 +257,7 @@ export function AppProvider({ children }) {
     error,
     saving,
     refreshingPrices,
+    importingPower,
     setQty,
     replaceCollection,
     mergeCollection,
@@ -242,6 +268,7 @@ export function AppProvider({ children }) {
     toggleCardTag,
     reloadDecks,
     refreshPrices,
+    importPower,
     dismissError: () => setError(null),
   };
 

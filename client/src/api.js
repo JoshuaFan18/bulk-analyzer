@@ -11,6 +11,9 @@ async function request(url, options = {}) {
 export const api = {
   getCards: () => request('/api/cards'),
   refreshPrices: () => request('/api/prices/refresh', { method: 'POST' }),
+  getPower: () => request('/api/power'),
+  importPower: (ids) =>
+    request('/api/power/import', { method: 'POST', body: JSON.stringify({ ids }) }),
   getCollection: () => request('/api/collection'),
   saveCollection: (cards) =>
     request('/api/collection', { method: 'PUT', body: JSON.stringify({ cards }) }),

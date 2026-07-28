@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getCards, refreshCards } from './cards.js';
+import { getPower, importPower } from './power.js';
 import { getLegends, getMetaMap } from './riftdecks.js';
 import { readJson, writeJson, listJson, deleteJson } from './store.js';
 
@@ -26,6 +27,19 @@ const handle = (fn) => async (req, res) => {
 // ---- Card database + prices ----
 app.get('/api/cards', handle(() => getCards()));
 app.post('/api/prices/refresh', handle(() => refreshCards()));
+
+// ---- Power costs ----
+// Runtime overlay on top of the committed baseline the client imports. The
+// request carries the ids that currently read null, so nothing already known
+// gets refetched.
+app.get('/api/power', handle(() => getPower()));
+app.post(
+  '/api/power/import',
+  handle(async (req) => {
+    const { cards } = await getCards();
+    return importPower(cards, req.body?.ids || null);
+  })
+);
 
 // ---- Collection ----
 const EMPTY_COLLECTION = { cards: {}, updatedAt: null };

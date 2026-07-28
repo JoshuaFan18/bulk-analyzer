@@ -286,16 +286,31 @@ from `cards`: surplus only exists for what you own, so the loop is over the owne
 - Deliberately out of scope (previously decided against): binders, product/sealed tracking, card
   scanning, playtesting and opening-hand tools.
 - The DotGG API exposes no **power** stat — its `cost` is the *energy* (generic) cost, and there
-  is no separate colored-cost field. `card.power` is instead merged in from a static map,
-  [client/src/data/powerCosts.json](client/src/data/powerCosts.json), keyed by printing id and
-  built by [scripts/build-power-costs.mjs](scripts/build-power-costs.mjs) from the keyless
-  `api.riftcodex.com/cards` (whose `attributes.energy` is byte-identical to DotGG `cost`, verified,
-  so only `power` is taken). Regenerate with `node scripts/build-power-costs.mjs` when a new set
-  drops. It is **null** for cards with no power concept (Legends, Battlefields, Runes, tokens) and
-  folds across printings by `cardIdentity`, so alt-art and promo printings inherit their base
-  card's power. Riot's own `riftbound-content-v1` endpoint carries the same stat but is gated to
-  approved production keys, so it is not usable here. An energy → power → default sort chain is now
-  possible (`card.cost` then `card.power`).
+  is no separate colored-cost field. `card.power` is merged in by `state.jsx` from **two** sources,
+  baseline first: the committed [client/src/data/powerCosts.json](client/src/data/powerCosts.json),
+  then the runtime overlay `data/power.json`. The baseline wins, so an import can never rewrite a
+  known value. Power is **null** for cards with no power concept — `hasPowerConcept` in
+  [server/power.js](server/power.js) requires a non-null `cost` and not a token, which excludes
+  Legends, Battlefields, Runes, and the 16 double-faced tokens that carry `cost: 0` but no power.
+  Values fold across printings by `cardIdentity`, so alt-art and promo printings inherit their base
+  card's power. An energy → power → default sort chain is now possible (`card.cost` then
+  `card.power`).
+  - Source is the keyless `api.riftcodex.com/cards`, whose `attributes.energy` is identical to
+    DotGG `cost` (verified across every shared card), so **only `power` is taken from it**. It has
+    no price data at all and cannot replace DotGG. Riot's own `riftbound-content-v1` carries the
+    same stat but is gated to approved production keys.
+  - The fetch and the join live in [server/power.js](server/power.js) and are **shared** by both
+    writers, so they cannot drift: [scripts/build-power-costs.mjs](scripts/build-power-costs.mjs)
+    (`node scripts/build-power-costs.mjs`, run when a new set drops) writes the committed baseline,
+    and `POST /api/power/import` behind the Config page's **Import Power** button fills whatever the
+    baseline is missing into `data/power.json`. The button posts only the ids that currently read
+    null, so a known value is never refetched.
+  - The baseline is tracked in git because the client `import`s it at build time — unlike
+    everything under `data/`, nothing regenerates it on demand, so a fresh clone would fail to
+    build without it.
+  - `GET /api/power` is fetched with a `.catch` fallback in `state.jsx`: an Express process started
+    before these routes existed 404s, and the app must still boot. **Restart Express** after
+    pulling this — node does not hot-reload.
 - `npm run build` is the cheapest check that nothing is broken, since there is no test suite —
   it catches bad imports and syntax that Vite's hot reload will happily paper over.
 

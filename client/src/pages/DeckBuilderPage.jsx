@@ -6,12 +6,11 @@ import Modal from '../components/Modal.jsx';
 import DeckStats from '../components/DeckStats.jsx';
 import DeckCollectionList from '../components/DeckCollectionList.jsx';
 import CardDetailModal from '../components/CardDetailModal.jsx';
+import PowerCost from '../components/PowerCost.jsx';
+import DeckFilterModal from '../components/DeckFilterModal.jsx';
 import {
   COLORS,
-  COLOR_HEX,
-  MIGHT_BUCKETS,
-  RARITIES,
-  SUPERTYPES,
+  cardIdentity,
   cardMatchesText,
   championMatchesLegend,
   championOf,
@@ -20,6 +19,9 @@ import {
   isBasePrinting,
   isToken,
   matchesMight,
+  matchesPower,
+  matchesSupertype,
+  matchesType,
   ownedAcrossPrintings,
   setLabel,
   signatureAllowed,
@@ -31,6 +33,8 @@ import {
   ZONE_LADDER,
   addCard,
   canMoveCard,
+  deckCopyLimit,
+  deckEntries,
   emptyDeck,
   exportDeckText,
   mainTarget,
@@ -41,6 +45,7 @@ import {
   signatureCount,
   zoneCount,
 } from '../lib/deck.js';
+import { allApiTags, allCustomTags, matchesTagFilter } from '../lib/tags.js';
 
 const POOL_TABS = [
   { id: 'all', label: 'All' },
@@ -70,27 +75,49 @@ const SORT_MODES = [
   { id: 'count', label: 'Copies' },
 ];
 
+// Every control the filter modal owns, in one object so the pool memo, the
+// per-option counts and the Reset button all read from a single source.
+const DEFAULT_FILTERS = {
+  colors: [],
+  type: 'any',
+  cost: 'any',
+  power: 'any',
+  might: 'any',
+  rarity: 'any',
+  set: 'any',
+  keyword: 'any',
+  tag: 'any',
+  supertype: 'any',
+  legality: 'any',
+  errata: 'any',
+  availableOnly: false,
+  ownedOnly: false,
+  search: '',
+};
+
+// Search stays on the bar rather than in the modal, so it does not count
+// towards the badge on the trigger button.
+const BADGE_KEYS = Object.keys(DEFAULT_FILTERS).filter((k) => k !== 'search');
+
+function activeFilterCount(filters) {
+  return BADGE_KEYS.filter((k) =>
+    k === 'colors' ? filters.colors.length > 0 : filters[k] !== DEFAULT_FILTERS[k]
+  ).length;
+}
+
 export default function DeckBuilderPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { cards, cardsById, ownedIndex, keywordIndex, reloadDecks } = useApp();
+  const { cards, cardsById, ownedIndex, keywordIndex, inDeckIndex, tags, wishlist, reloadDecks } =
+    useApp();
 
   const [deck, setDeck] = useState(emptyDeck);
   const [loadingDeck, setLoadingDeck] = useState(!!id);
   const [tab, setTab] = useState('all');
   const [target, setTarget] = useState('auto');
   const [panelTab, setPanelTab] = useState('deck');
-  const [search, setSearch] = useState('');
-  const [colors, setColors] = useState([]);
-  const [setFilter, setSetFilter] = useState('any');
-  const [rarity, setRarity] = useState('any');
-  const [cost, setCost] = useState('any');
-  const [might, setMight] = useState('any');
-  const [keyword, setKeyword] = useState('any');
-  const [supertype, setSupertype] = useState('any');
-  const [legality, setLegality] = useState('any');
-  const [errata, setErrata] = useState('any');
-  const [ownedOnly, setOwnedOnly] = useState(false);
+  const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [showFilters, setShowFilters] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [showImport, setShowImport] = useState(false);
   const [showExport, setShowExport] = useState(false);
@@ -124,66 +151,200 @@ export default function DeckBuilderPage() {
 
   const legendCard = deck.legend ? cardsById.get(deck.legend) : null;
 
+  const updateFilters = (patch) => setFilters((f) => ({ ...f, ...patch }));
+
+  // The domain row follows the legend: with one chosen, withinLegendDomains
+  // already limits the pool to its two domains, so no other option could match.
+  const filterDomains = useMemo(
+    () =>
+      legendCard
+        ? (legendCard.colors || []).filter((c) => c !== 'Colorless')
+        : COLORS.filter((c) => c !== 'Colorless'),
+    [legendCard]
+  );
+
+  // Swapping the legend can strand a domain the new one does not have, which
+  // would empty the pool from a control that is no longer on screen.
+  useEffect(() => {
+    setFilters((f) =>
+      f.colors.every((c) => filterDomains.includes(c))
+        ? f
+        : { ...f, colors: f.colors.filter((c) => filterDomains.includes(c)) }
+    );
+  }, [filterDomains]);
+
+  // Everything the modal has no control for: the pool's own legality rules, the
+  // zone tab strip and the search box. Split out so the per-option counts below
+  // only re-test the controls the modal owns.
+  const baseList = useMemo(
+    () =>
+      cards.filter((card) => {
+        if (isToken(card)) return false;
+        if (!isBasePrinting(card)) return false;
+        if (!signatureAllowed(card, legendCard)) return false;
+        if (!withinLegendDomains(card, legendCard)) return false;
+        if (tab === 'legend' && card.type !== 'Legend') return false;
+        if (tab === 'champion' && !championMatchesLegend(card, legendCard)) return false;
+        if (tab === 'maindeck' && !['Unit', 'Spell', 'Gear'].includes(card.type)) return false;
+        if (tab === 'battlefields' && card.type !== 'Battlefield') return false;
+        if (tab === 'runes' && card.type !== 'Rune') return false;
+        if (!cardMatchesText(card, filters.search)) return false;
+        return true;
+      }),
+    [cards, legendCard, tab, filters.search]
+  );
+
+  // Cards this deck cannot take another copy of, behind the "Available to add"
+  // toggle. Null unless the toggle is on or the modal is open (which needs it
+  // for that option's count) — that is what keeps the pool from recomputing on
+  // every add and remove. addCard swaps the Legend and the Chosen Champion
+  // rather than refusing, so a legend is always still addable.
+  const atLimitIds = useMemo(() => {
+    if (!filters.availableOnly && !showFilters) return null;
+    const held = new Map();
+    for (const { cardId, count } of deckEntries(deck)) {
+      held.set(cardId, (held.get(cardId) || 0) + count);
+    }
+    const ids = new Set();
+    for (const [cardId, n] of held) {
+      const card = cardsById.get(cardId);
+      if (!card || card.type === 'Legend') continue;
+      if (n >= deckCopyLimit(card)) ids.add(cardId);
+    }
+    return ids;
+  }, [filters.availableOnly, showFilters, deck, cardsById]);
+
+  // One entry per control the modal owns. `test` is that control at its current
+  // value, `buckets` the options a card would answer to. Keeping the pair
+  // together is what lets one pass produce both the pool and every count.
+  const filterGroups = useMemo(() => {
+    const f = filters;
+    return [
+      {
+        key: 'colors',
+        test: (c) => f.colors.length === 0 || f.colors.some((x) => (c.colors || []).includes(x)),
+        buckets: (c) => (c.colors || []).filter((x) => x !== 'Colorless'),
+      },
+      { key: 'type', test: (c) => matchesType(c, f.type), buckets: (c) => (c.type ? [c.type] : []) },
+      {
+        key: 'cost',
+        test: (c) =>
+          f.cost === 'any' || (f.cost === '7+' ? c.cost >= 7 : c.cost === Number(f.cost)),
+        buckets: (c) => (c.cost == null ? [] : [c.cost >= 7 ? '7+' : String(c.cost)]),
+      },
+      {
+        key: 'power',
+        test: (c) => matchesPower(c, f.power),
+        buckets: (c) => (c.power == null ? [] : [c.power >= 3 ? '3+' : String(c.power)]),
+      },
+      {
+        key: 'might',
+        test: (c) => matchesMight(c, f.might),
+        buckets: (c) => (c.might == null ? [] : [c.might >= 9 ? '9+' : String(c.might)]),
+      },
+      {
+        key: 'rarity',
+        test: (c) => f.rarity === 'any' || c.rarity === f.rarity,
+        buckets: (c) => (c.rarity ? [c.rarity] : []),
+      },
+      {
+        key: 'set',
+        test: (c) => f.set === 'any' || c.setCode === f.set,
+        buckets: (c) => (c.setCode ? [c.setCode] : []),
+      },
+      {
+        key: 'legality',
+        test: (c) => f.legality === 'any' || (f.legality === 'banned' ? !!c.banned : !c.banned),
+        buckets: (c) => [c.banned ? 'banned' : 'legal'],
+      },
+      {
+        key: 'available',
+        // atLimitIds is also built while the modal is merely open, so the test
+        // has to read the toggle rather than the set's presence.
+        test: (c) => !f.availableOnly || !atLimitIds?.has(c.id),
+        buckets: (c) => (atLimitIds?.has(c.id) ? [] : ['on']),
+      },
+      {
+        key: 'owned',
+        test: (c) => !f.ownedOnly || ownedAcrossPrintings(c, ownedIndex).total > 0,
+        buckets: (c) => (ownedAcrossPrintings(c, ownedIndex).total > 0 ? ['on'] : []),
+      },
+      // The four dropdowns. The mockup shows no counts beside them, so they
+      // only have to take part in the exclusion logic.
+      { key: 'supertype', test: (c) => matchesSupertype(c, f.supertype), buckets: () => [] },
+      {
+        key: 'errata',
+        test: (c) => f.errata === 'any' || (f.errata === 'yes' ? !!c.errata : !c.errata),
+        buckets: () => [],
+      },
+      {
+        key: 'keyword',
+        test: (c) => f.keyword === 'any' || !!keywordIndex.byCard.get(c.id)?.has(f.keyword),
+        buckets: () => [],
+      },
+      {
+        key: 'tag',
+        test: (c) => matchesTagFilter(c, f.tag, { tags, wishlist, inDeckIndex }),
+        buckets: () => [],
+      },
+    ];
+  }, [filters, atLimitIds, ownedIndex, keywordIndex, tags, wishlist, inDeckIndex]);
+
   const pool = useMemo(() => {
-    const list = cards.filter((card) => {
-      if (isToken(card)) return false;
-      if (!isBasePrinting(card)) return false;
-      if (!signatureAllowed(card, legendCard)) return false;
-      if (!withinLegendDomains(card, legendCard)) return false;
-      if (ownedOnly && ownedAcrossPrintings(card, ownedIndex).total === 0) return false;
-      if (tab === 'legend' && card.type !== 'Legend') return false;
-      if (tab === 'champion' && !championMatchesLegend(card, legendCard)) return false;
-      if (tab === 'maindeck' && !['Unit', 'Spell', 'Gear'].includes(card.type)) return false;
-      if (tab === 'battlefields' && card.type !== 'Battlefield') return false;
-      if (tab === 'runes' && card.type !== 'Rune') return false;
-      if (setFilter !== 'any' && card.setCode !== setFilter) return false;
-      if (rarity !== 'any' && card.rarity !== rarity) return false;
-      if (supertype !== 'any' && card.supertype !== supertype) return false;
-      if (!matchesMight(card, might)) return false;
-      if (cost !== 'any') {
-        if (cost === '7+' ? !(card.cost >= 7) : card.cost !== Number(cost)) return false;
-      }
-      if (legality !== 'any') {
-        if (legality === 'banned' ? !card.banned : card.banned) return false;
-      }
-      if (errata !== 'any') {
-        const hasErrata = !!card.errata;
-        if (errata === 'yes' ? !hasErrata : hasErrata) return false;
-      }
-      if (keyword !== 'any' && !keywordIndex.byCard.get(card.id)?.has(keyword)) return false;
-      if (colors.length > 0 && !colors.some((c) => (card.colors || []).includes(c)))
-        return false;
-      if (!cardMatchesText(card, search)) return false;
-      return true;
-    });
+    const list = baseList.filter((card) => filterGroups.every((g) => g.test(card)));
     // Each rune is reprinted as a base printing in every set, so without this
     // the Runes tab shows the same six runes four times over.
     const unique = dedupeByIdentity(list);
     unique.sort((a, b) => (a.cost ?? 99) - (b.cost ?? 99) || a.name.localeCompare(b.name));
     return unique;
-  }, [
-    cards,
-    tab,
-    setFilter,
-    rarity,
-    cost,
-    colors,
-    search,
-    legendCard,
-    ownedOnly,
-    ownedIndex,
-    might,
-    keyword,
-    supertype,
-    legality,
-    errata,
-    keywordIndex,
-  ]);
+  }, [baseList, filterGroups]);
 
-  useEffect(
-    () => setVisibleCount(PAGE_SIZE),
-    [tab, setFilter, rarity, cost, colors, search, legendCard, ownedOnly, might, keyword, supertype, legality, errata]
-  );
+  // Live match counts. The number beside an option is what picking it would
+  // leave, so every filter EXCEPT its own group is applied — recomputing the
+  // pool once per option would mean ~40 passes over ~940 cards per keystroke.
+  //
+  // One pass instead: a card that fails no group belongs in every group's
+  // counts, one that fails exactly one belongs only in that group's, and two
+  // failures make it nobody's. Buckets hold card identities rather than cards
+  // so the counts agree with the deduped pool, where the six runes collapse
+  // from their four reprints.
+  const poolCounts = useMemo(() => {
+    const byGroup = filterGroups.map(() => new Map());
+    for (const card of baseList) {
+      let failed = -1;
+      let fails = 0;
+      for (let i = 0; i < filterGroups.length; i++) {
+        if (filterGroups[i].test(card)) continue;
+        fails += 1;
+        if (fails > 1) break;
+        failed = i;
+      }
+      if (fails > 1) continue;
+      const identity = cardIdentity(card);
+      for (let i = 0; i < filterGroups.length; i++) {
+        if (fails === 1 && i !== failed) continue;
+        const values = byGroup[i];
+        for (const value of filterGroups[i].buckets(card)) {
+          let seen = values.get(value);
+          if (!seen) values.set(value, (seen = new Set()));
+          seen.add(identity);
+        }
+      }
+    }
+    const counts = {};
+    filterGroups.forEach((g, i) => {
+      const out = {};
+      for (const [value, seen] of byGroup[i]) out[value] = seen.size;
+      counts[g.key] = out;
+    });
+    return counts;
+  }, [baseList, filterGroups]);
+
+  const apiTags = useMemo(() => allApiTags(cards), [cards]);
+  const customTags = useMemo(() => allCustomTags(tags), [tags]);
+  const activeFilters = activeFilterCount(filters);
+
+  useEffect(() => setVisibleCount(PAGE_SIZE), [filters, tab, legendCard]);
 
   useEffect(() => {
     const el = sentinelRef.current;
@@ -276,109 +437,51 @@ export default function DeckBuilderPage() {
             </label>
           </div>
 
-          <div className="filter-bar">
-            <div className="color-chips">
-              {COLORS.map((color) => (
-                <button
-                  key={color}
-                  className={`color-chip ${colors.includes(color) ? 'on' : ''}`}
-                  style={{ background: COLOR_HEX[color] }}
-                  title={color}
-                  onClick={() =>
-                    setColors((cs) =>
-                      cs.includes(color) ? cs.filter((c) => c !== color) : [...cs, color]
-                    )
-                  }
-                >
-                  {color[0]}
-                </button>
-              ))}
-            </div>
-            <select value={setFilter} onChange={(e) => setSetFilter(e.target.value)}>
-              <option value="any">Set: Any</option>
-              {setNames.map(([code, name]) => (
-                <option key={code} value={code}>
-                  {code} — {name}
-                </option>
-              ))}
-            </select>
-            <select value={rarity} onChange={(e) => setRarity(e.target.value)}>
-              <option value="any">Rarity: Any</option>
-              {RARITIES.filter((r) => r !== 'Showcase').map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
-            <select value={cost} onChange={(e) => setCost(e.target.value)}>
-              <option value="any">Energy: Any</option>
-              {[0, 1, 2, 3, 4, 5, 6].map((c) => (
-                <option key={c} value={c}>
-                  Energy: {c}
-                </option>
-              ))}
-              <option value="7+">Energy: 7+</option>
-            </select>
-
-            <select value={might} onChange={(e) => setMight(e.target.value)}>
-              <option value="any">Might: Any</option>
-              {MIGHT_BUCKETS.map((m) => (
-                <option key={m} value={m}>
-                  Might: {m}
-                </option>
-              ))}
-            </select>
-
-            <select value={supertype} onChange={(e) => setSupertype(e.target.value)}>
-              <option value="any">Super type: Any</option>
-              {SUPERTYPES.filter((s) => s !== 'Token').map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-
-            <select value={keyword} onChange={(e) => setKeyword(e.target.value)}>
-              <option value="any">Keyword: Any</option>
-              {keywordIndex.all.map(([kw, n]) => (
-                <option key={kw} value={kw}>
-                  {kw} ({n})
-                </option>
-              ))}
-            </select>
-
-            <select value={legality} onChange={(e) => setLegality(e.target.value)}>
-              <option value="any">Legality: Any</option>
-              <option value="legal">Legal only</option>
-              <option value="banned">Banned only</option>
-            </select>
-
-            <select value={errata} onChange={(e) => setErrata(e.target.value)}>
-              <option value="any">Errata: Any</option>
-              <option value="yes">Has errata</option>
-              <option value="no">No errata</option>
-            </select>
+          {/* Search stays out here because it is typed at, not picked from. The
+              rest of the wall of selects this used to be now lives in the
+              modal, with the badge saying how many of them are set. */}
+          <div className="pool-controls">
             <input
               type="search"
               placeholder="Search…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={filters.search}
+              onChange={(e) => updateFilters({ search: e.target.value })}
             />
-            <label className="inline" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <input
-                type="checkbox"
-                checked={ownedOnly}
-                onChange={(e) => setOwnedOnly(e.target.checked)}
-              />
-              Owned only
-            </label>
+            <button
+              className={`filter-trigger ${activeFilters > 0 ? 'on' : ''}`}
+              onClick={() => setShowFilters(true)}
+            >
+              Filter cards
+              {activeFilters > 0 && <span className="filter-badge">{activeFilters}</span>}
+            </button>
+            {activeFilters > 0 && (
+              <button
+                onClick={() => setFilters((f) => ({ ...DEFAULT_FILTERS, search: f.search }))}
+              >
+                Reset
+              </button>
+            )}
             <span className="count-note">{pool.length} cards</span>
             {legendCard && (
-              <span className="count-note">
-                · {(legendCard.colors || []).join('/')} domains
-              </span>
+              <span className="count-note">· {(legendCard.colors || []).join('/')} domains</span>
             )}
           </div>
+
+          {showFilters && (
+            <DeckFilterModal
+              filters={filters}
+              onChange={updateFilters}
+              onReset={() => setFilters((f) => ({ ...DEFAULT_FILTERS, search: f.search }))}
+              onClose={() => setShowFilters(false)}
+              counts={poolCounts}
+              domains={filterDomains}
+              hasLegend={!!legendCard}
+              setNames={setNames}
+              keywordOptions={keywordIndex.all}
+              customTags={customTags}
+              apiTags={apiTags}
+            />
+          )}
 
           {tab === 'champion' && !legendCard && (
             <div className="empty-zone" style={{ margin: '8px 0' }}>
@@ -621,7 +724,6 @@ function DeckCardRow({
   onExpand,
 }) {
   const name = card?.name || cardId;
-  const domains = (card?.colors || []).filter((c) => c !== 'Colorless');
   return (
     <div className={`deck-card ${card ? '' : 'missing'}`}>
       {card ? (
@@ -654,20 +756,16 @@ function DeckCardRow({
               {card.cost}
             </span>
           )}
+          {/* The POWER cost, drawn as one domain symbol per point -- this row
+              used to show a colourless diamond per domain, which said nothing
+              about what the card actually costs to play. */}
+          {card && <PowerCost card={card} />}
           {card?.might != null && (
             <span className="dc-might" title={`${card.might} might`}>
               {card.might}
               <span className="rb-icon might">⚔</span>
             </span>
           )}
-          {domains.map((c) => (
-            <span
-              key={c}
-              className="rb-icon rune"
-              style={{ background: COLOR_HEX[c] }}
-              title={`${c} domain`}
-            />
-          ))}
           <span className="dc-spacer" />
           {onMove && (
             <>

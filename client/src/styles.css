@@ -1400,26 +1400,13 @@ details.panel summary {
   margin: 0 1px;
 }
 
-/* The domain art for [rb_rune_<domain>] and [rb_rune_rainbow]. The CSS diamond
-   below is what it replaced; that rule stays only for the deck panel rows,
-   which still draw domain squares of their own. */
+/* The domain art for [rb_rune_<domain>] and [rb_rune_rainbow]. This replaced a
+   CSS-drawn diamond, which the deck panel rows also used; those now draw the
+   power cost with the same art, so the diamond rules are gone entirely. */
 .rb-icon.rune-art {
   width: 13px;
   height: 13px;
   margin: 0 1px;
-}
-
-.rb-icon.rune {
-  width: 10px;
-  height: 10px;
-  margin: 0 2px;
-  border-radius: 2px;
-  transform: rotate(45deg);
-}
-
-/* "a rune of any domain" */
-.rb-icon.rune.rainbow {
-  background: conic-gradient(#e05252, #e0913d, #e6cf6b, #3ec6a8, #4f8fe6, #a66be6, #e05252);
 }
 
 .rb-icon.unknown {
@@ -1974,4 +1961,238 @@ details.panel summary {
   background: none;
   accent-color: var(--accent-2);
   flex: none;
+}
+
+/* ---- Deck builder filter modal ---- */
+/* The wall of selects that used to sit above the pool moved into a dialog, so
+   what is left above the grid is the search box and the button that opens it.
+   .filter-bar is untouched — the collection page still uses it. */
+.pool-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.pool-controls input[type='search'] {
+  min-width: 220px;
+}
+
+.filter-trigger.on {
+  border-color: var(--accent-2);
+  color: var(--text);
+}
+
+/* How many of the modal's controls are set. Search is excluded — it is visible
+   on the bar already, so counting it would put a badge on a closed dialog that
+   has nothing set inside it. */
+.filter-badge {
+  display: inline-block;
+  min-width: 16px;
+  margin-left: 6px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--accent-2);
+  color: #0b1017;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.modal.filter-modal {
+  width: min(880px, 96vw);
+  position: relative;
+}
+
+.filter-modal .fm-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 2px 8px;
+  line-height: 1.4;
+}
+
+/* PRIMARY and CARD PROPERTIES sit side by side; with no legend the second one
+   is not rendered at all and the first takes the full width. */
+.fm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 12px;
+}
+
+.fm-section {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.fm-grid .fm-section {
+  margin-bottom: 0;
+}
+
+.fm-section-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.fm-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-dim);
+}
+
+.fm-section.primary .fm-dot {
+  background: var(--accent-2);
+}
+.fm-section.properties .fm-dot {
+  background: var(--accent);
+}
+.fm-section.advanced .fm-dot {
+  background: #a66be6;
+}
+.fm-section.status .fm-dot {
+  background: var(--green);
+}
+
+.fm-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 5px 0;
+}
+
+.fm-row-label {
+  flex: none;
+  width: 62px;
+  padding-top: 5px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.fm-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Every option carries the count it would leave, so the number is part of the
+   button rather than a tooltip. */
+.fm-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  font-size: 12px;
+}
+
+.fm-opt.on {
+  border-color: var(--accent-2);
+  background: rgba(79, 143, 230, 0.16);
+  color: var(--text);
+}
+
+.fm-opt-label {
+  display: inline-flex;
+  align-items: center;
+}
+
+.fm-opt-count {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.fm-opt.on .fm-opt-count {
+  color: var(--text);
+}
+
+/* Keywords / Tags / Super type / Errata. These stay dropdowns because their
+   option lists run to 33 and 128 entries — pills would be a wall. */
+.fm-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.fm-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fm-fields select {
+  width: 100%;
+}
+
+.fm-field-label {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.fm-status {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.fm-status-head {
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.fm-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.fm-toggle-label {
+  flex: 1;
+}
+
+.fm-toggle.on {
+  color: var(--text);
+}
+
+/* Same reset the toolbar checkboxes need — the global input rule would
+   otherwise give these a 6px padding and a fill. */
+.fm-switch {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  accent-color: var(--accent-2);
+  flex: none;
+}
+
+/* Clearing the legend hides TYPE/ENERGY/POWER/MIGHT/RARITY but keeps their
+   values, so the pool would be filtered by controls that are off screen. */
+.fm-stranded {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  font-size: 12px;
+  color: var(--text-dim);
 }

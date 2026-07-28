@@ -86,6 +86,14 @@ export default function CardDetailModal({ card, onClose }) {
                 <span className="cd-stat-value">{card.cost}</span>
               </div>
             )}
+            {/* The colored cost, merged onto the card in state.jsx. Null for
+                anything with no power concept, which is not the same as 0. */}
+            {card.power != null && (
+              <div className="cd-stat">
+                <span className="cd-label">Power</span>
+                <span className="cd-stat-value">{card.power}</span>
+              </div>
+            )}
             {card.might != null && (
               <div className="cd-stat">
                 <span className="cd-label">Might</span>

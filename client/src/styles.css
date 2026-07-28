@@ -1377,8 +1377,21 @@ details.panel summary {
   font-size: 11px;
 }
 
+/* Tap.png, sized to sit on the text baseline like the CSS-drawn glyphs it
+   replaced. */
 .rb-icon.exhaust {
-  color: var(--accent-2);
+  width: 14px;
+  height: 14px;
+  margin: 0 1px;
+}
+
+/* The domain art for [rb_rune_<domain>] and [rb_rune_rainbow]. The CSS diamond
+   below is what it replaced; that rule stays only for the deck panel rows,
+   which still draw domain squares of their own. */
+.rb-icon.rune-art {
+  width: 13px;
+  height: 13px;
+  margin: 0 1px;
 }
 
 .rb-icon.rune {
@@ -1877,4 +1890,29 @@ details.panel summary {
     position: static;
     max-height: none;
   }
+}
+
+/* ---- Domain art (client/src/assets/icons) ---- */
+/* Bundled PNGs replacing the CSS-drawn domain diamonds. Every icon is a square
+   64px source, so callers set the box and the image just fills it. */
+.domain-icon {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  vertical-align: -3px;
+  flex: none;
+}
+
+/* One domain symbol per point of power, so a power-4 card draws four. */
+.power-cost {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.power-cost .domain-icon {
+  width: 13px;
+  height: 13px;
+  vertical-align: -2px;
 }

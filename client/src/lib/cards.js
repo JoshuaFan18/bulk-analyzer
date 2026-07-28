@@ -211,6 +211,20 @@ export function matchesMight(card, bucket) {
   return bucket === '9+' ? card.might >= 9 : card.might === Number(bucket);
 }
 
+// Buckets for the Power filter -- the COLORED cost, not card.cost (energy).
+// Power tops out at 4 in the data, so "3+" covers 3 and 4.
+export const POWER_BUCKETS = ['0', '1', '2', '3+'];
+
+// Shared by the deck builder and the collection page so the two cannot drift.
+// Like matchesMight, a null stat is excluded rather than read as 0: the 311
+// cards with no power concept (legends, battlefields, runes, tokens) must not
+// answer to the "0" bucket, which 542 real zero-power cards already own.
+export function matchesPower(card, bucket) {
+  if (bucket === 'any') return true;
+  if (card.power == null) return false;
+  return bucket === '3+' ? card.power >= 3 : card.power === Number(bucket);
+}
+
 // Encoded as "type:Unit" / "super:Champion" so one control can offer both.
 export function matchesTypeFilter(card, value) {
   if (value === 'any') return true;

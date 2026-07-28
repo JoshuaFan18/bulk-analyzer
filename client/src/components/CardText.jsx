@@ -1,9 +1,11 @@
 import React from 'react';
-import { COLOR_HEX } from '../lib/cards.js';
+import DomainIcon from './DomainIcon.jsx';
+import { TAP_ICON } from '../lib/icons.js';
 import { iconSpec, parseCardText } from '../lib/cardText.js';
 
-// The game's inline symbols, drawn from CSS rather than the reference art in
-// icons/ so nothing has to be bundled or hot-linked.
+// The game's inline symbols. Runes and the exhaust glyph are the bundled art in
+// client/src/assets/icons/; might and energy stay CSS-drawn, since the icon
+// rules do not name a file for either.
 export function CardIcon({ token }) {
   const spec = iconSpec(token);
   // An icon code the card pool has not used before shows as its literal token
@@ -22,19 +24,10 @@ export function CardIcon({ token }) {
       </span>
     );
   if (spec.kind === 'exhaust')
-    return (
-      <span className="rb-icon exhaust" title={spec.label}>
-        ⟳
-      </span>
-    );
-  const hex = COLOR_HEX[spec.value];
-  return (
-    <span
-      className={`rb-icon rune ${hex ? '' : 'rainbow'}`}
-      style={hex ? { background: hex } : undefined}
-      title={spec.label}
-    />
-  );
+    return <img className="rb-icon exhaust" src={TAP_ICON} alt={spec.label} title={spec.label} />;
+  // spec.value is a domain name, or "Rainbow" for [rb_rune_rainbow]; DomainIcon
+  // maps anything without art of its own onto the rainbow rune.
+  return <DomainIcon className="rb-icon rune-art" domain={spec.value} title={spec.label} />;
 }
 
 function Parts({ parts }) {

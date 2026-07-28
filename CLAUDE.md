@@ -322,15 +322,16 @@ from `cards`: surplus only exists for what you own, so the loop is over the owne
 ### **POWER INTEGRATION**
 Note to Agent: tell me if the png format is slow/clunky for this purpose
 
-<u>Icon rules (replace the colored diamonds and other symbols):</u>
+<u>Icon rules (replace the colored diamonds):</u>
 
-1. In text icons \[rb_rune_\{domain\}\] use the domain symbol ending in 2 (i.e. icons\Chaos2.png)
-2. For generic power \[rb_rune_rainbow\] and multi domain power use the rainbow symbol icons\RainbowRune.png.
-3. \[rb_exhaust\] should be represented by icons\Tap.png
+1. In text icons use the domain symbol ending in 2 (i.e. icons\Chaos2.png)
+2. For generic power and multi domain power use the rainbow symbol icons\RainbowRune.png.
 
 **Preview Card**
 - Power is added as a number next to energy and before might
-- If power cost is specified
+- In text icons \[rb_rune_\{domain\}\] use the domain symbol ending in 2 (i.e. icons\Chaos2.png)
+- For generic power \[rb_rune_rainbow\] and multi domain power use the rainbow symbol icons\RainbowRune.png.
+- \[rb_exhaust\] should be represented by icons\Tap.png
 
 **Deckbuilder**
 - Power filter added
@@ -345,7 +346,7 @@ Note to Agent: tell me if the png format is slow/clunky for this purpose
 - Add power filter
 - Supertype should be a separate filter from type. 
 - Add Double-sided filter option from dot.gg\
-- Replace the letter + color circle currently used for domain filter with the png icons without the 2 suffix. i.e. icons\Chaos.png. No need to algorithmically do this, hard code the pointer.
+- Replace the letter + color circle currently used for domain filter with the png icons without the "2" suffix. i.e. icons\Chaos.png. No need to algorithmically do this, hard code the pointer.
 - Lock the filter/search bar so that when the user scrolls it stays at the top
 
 **Surplus**

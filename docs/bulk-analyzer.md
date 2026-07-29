@@ -15,7 +15,7 @@ server. A card is true bulk when **all** of these conditions are true:
     lists **at the click** and not at the next run, and a re-run gives the same lists that are on
     the screen. All the counts and the totals read this live partition.
 - You own a minimum of 1 **normal** copy. A foil never counts.
-- The normal price is less than the price limit (`DEFAULT_PRICE_LIMIT`, $0.25). A null price or a 0
+- The normal price is less than the price limit (`DEFAULT_PRICE_LIMIT`, $0.20). A null price or a 0
   price is unknown, and the page removes that card. Do not think that it is inexpensive.
 - The maximum play rate across the meta legends is less than or equal to the play-rate limit
   (`DEFAULT_PLAY_RATE_LIMIT`, 10%). A card above the limit goes into the "protected by meta" list.

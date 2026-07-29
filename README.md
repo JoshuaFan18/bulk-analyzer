@@ -39,7 +39,7 @@ bulk when all of these conditions are true:
 - The rarity is Common or Uncommon. The card is not a Rune and not a token.
 - The card does not have the `Keep` tag.
 - You own a minimum of one **normal** copy. A foil is never bulk.
-- The normal price is less than the price limit ($0.25).
+- The normal price is less than the price limit ($0.20).
 - The maximum play rate across the meta legends is not more than the play-rate
   limit (10%).
 

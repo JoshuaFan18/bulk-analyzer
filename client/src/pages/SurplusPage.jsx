@@ -1,3 +1,4 @@
+// Rules: docs/surplus.md
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../state.jsx';
 import {

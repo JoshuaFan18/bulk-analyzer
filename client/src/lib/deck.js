@@ -1,3 +1,4 @@
+// Rules: docs/libraries.md (deck model) and docs/deck-builder.md (legality)
 import {
   cardIdentity,
   championMatchesLegend,

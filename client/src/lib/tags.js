@@ -1,3 +1,4 @@
+// Rules: docs/libraries.md
 // Card tags. Three kinds share one control and one chip row:
 //
 //   - custom tags, stored per printing id in data/tags.json

@@ -1,3 +1,4 @@
+// Rules: docs/libraries.md (and the "Printings, prices and ownership" core in CLAUDE.md)
 export const COLORS = ['Fury', 'Calm', 'Mind', 'Body', 'Order', 'Chaos', 'Colorless'];
 
 export const COLOR_HEX = {

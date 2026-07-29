@@ -1,3 +1,4 @@
+// Rules: docs/libraries.md
 // Rules text as the DotGG API stores it: light HTML (<br />, <ul>/<li>, <em>)
 // with two kinds of inline token — `:rb_might:` style icon codes and the
 // `[Reaction]` / `[Shield 2]` keyword brackets that lib/cards.js already mines

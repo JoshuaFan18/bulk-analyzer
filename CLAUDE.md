@@ -4,6 +4,28 @@ This file gives guidance to Claude Code (claude.ai/code) for work in this reposi
 
 Always use ASD-STE100 English in responses and documentation.
 
+## Area docs — read one before you edit
+
+This file holds only the always-true core. The rules for each area are in `docs/`, and they load
+only when you read them. **Before you edit a file in an area below, read that area's doc first.** The
+doc has the rules that the code does not show; without it you will break an invariant that the tests
+cannot catch (there are no tests).
+
+| Area | Trigger files | Doc |
+| --- | --- | --- |
+| Libraries | `client/src/lib/*` | [docs/libraries.md](docs/libraries.md) |
+| Deck builder | `client/src/pages/DeckBuilderPage.jsx`, `client/src/components/DeckFilterModal.jsx`, legality in `client/src/lib/deck.js` | [docs/deck-builder.md](docs/deck-builder.md) |
+| True Bulk analyzer | `client/src/pages/BulkAnalyzerPage.jsx` | [docs/bulk-analyzer.md](docs/bulk-analyzer.md) |
+| Surplus | `client/src/pages/SurplusPage.jsx` | [docs/surplus.md](docs/surplus.md) |
+| Power costs | `server/power.js`, `client/src/data/powerCosts.json`, the Import Power flow | [docs/power-costs.md](docs/power-costs.md) |
+| Components and page shell | `client/src/components/*`, `client/src/pages/*` UI, `client/src/styles.css`, the domain-art assets | [docs/components.md](docs/components.md) |
+
+### When you add a page or an area
+
+A new page or a new area gets its own `docs/<area>.md`. Put the page-specific rules there, then add
+one row to the table above with the trigger files. **Keep this file the always-true core and the
+map** — do not paste the page rules back into it, or you undo the token saving that the split gives.
+
 ## Commands
 
 ```bash
@@ -78,80 +100,11 @@ Data shapes:
 - The decks are in the context because the collection page shows `[In Deck]`. **Call `reloadDecks()`
   after each deck save and each deck delete.**
 
-Libraries:
-
-- [client/src/lib/cards.js](client/src/lib/cards.js) has the domain constants, the pure helpers
-  (`SET_CODE_BY_NAME`, `normName`, `playsetTarget`, `setRank`, `setNameOptions`, `routeFinish`) and
-  the predicates in the sections that follow. Each filter bucket list has a `*Bucket` helper and a
-  matcher (`ENERGY_BUCKETS`/`energyBucket`/`matchesCost`, `MIGHT_BUCKETS`/`mightBucket`/
-  `matchesMight`, `POWER_BUCKETS`/`powerBucket`/`matchesPower`), because the collection page, the
-  deck filter modal, the builder's per-option counts and the deck stats curve all read them. **Keep
-  each list with its bucket helper and its matcher**, or a count appears next to an option that
-  filters to something else. A `*Bucket` helper gives **null** for a null stat, thus the matchers
-  reject it and do not read null as 0. Put all other reusable non-visual code here or in
-  `lib/deck.js`.
-- [client/src/lib/deck.js](client/src/lib/deck.js) has the deck model, the rules and the plain-text
-  deck format (a bare `Section:` header, then `3 Card Name`). A deck is
-  `{ legend, champion, battlefields, runes, main, side, bench }`, and each zone field is a
-  `{cardId: count}` map. `ZONES` has the limits, and `addCard` obeys them: at a limit it returns the
-  deck with no change and no message. Use `deckEntries()` to read a deck. `moveCard()` moves one
-  copy along `ZONE_LADDER` (`bench` to `side` to `main`) and **removes the copy before it adds the
-  copy**, thus the limit check at the destination does not count that copy. A blocked move must not
-  delete the copy. Battlefields and Runes have no arrows. Use `canMoveCard` to disable the button.
-- [client/src/lib/cardText.js](client/src/lib/cardText.js) has `parseCardText`, which changes one
-  `effect` string into blocks of parts for [CardText](client/src/components/CardText.jsx). The icon
-  codes are `rb_might`, `rb_exhaust`, `rb_energy_<n>`, `rb_rune_<domain>` and `rb_rune_rainbow`.
-  `[&gt;]` and `[&gt;&gt;]` are **arrows** and not keywords. Reminder text in `<em>` also has icon
-  codes, thus an `em` part contains parsed parts and not a string.
-- [client/src/lib/tags.js](client/src/lib/tags.js) keeps the tags in `data/tags.json` per **printing
-  id**, as the collection does. The custom tags and the derived `Wishlisted` and `In Deck` show as
-  chips. The 128 DotGG API tags (regions, creature types, champion names) filter, but they must stay
-  **invisible**, or they hide the tags that the user sets. `Wishlisted` and `In Deck` are refused as
-  custom names. `Keep` is a custom tag with a special function: the True Bulk analyzer and the
-  Surplus page ignore these cards.
-- [client/src/lib/rapidEntry.js](client/src/lib/rapidEntry.js) has the keyboard grammar for
-  [RapidEntryDialog](client/src/components/RapidEntryDialog.jsx): `3` is normal, `3+` is foil, `3p`
-  is promo, `10x3` is three copies, `-3` removes, and the modifiers can be in any sequence.
-  **Origins gives its runes usual numbers** (Fury Rune is `OGN-007`), but SFD, UNL and VEN use
-  `R01`. Promos have many id formats, thus `buildPromoIndex` groups the printings by their numeric
-  base and prefers the plain `-P`. The dialog calls `mergeCollection` **one time** at the commit.
-- [client/src/lib/importExport.js](client/src/lib/importExport.js) has a CSV parser and
-  `parseImport`, which identifies a DotGG, Legacy or TCGplayer file. A TCGplayer row matches first
-  on the set code with the collector number, then on the name. **Never change or delete a row
-  without a message:** the dialog gets `unmatched` and `converted`.
-- `routeFinish` in `lib/cards.js` **changes a typed finish to the finish that the printing has**,
-  and the importer and rapid entry both call it. Most printings are foil-only, and `CardTile` hides
-  the stepper for a missing finish. Thus the copies become invisible and the user cannot change them.
-- [client/src/lib/icons.js](client/src/lib/icons.js) has the domain art in hard-coded maps:
-  `DOMAIN_ICON` (plain art, the collection filter chips), `DOMAIN_POWER_ICON` (the art with the `2`
-  suffix, the power costs and the runes in rules text), `RAINBOW_ICON` and `TAP_ICON`. **Write each
-  pointer**, because an ES import cannot use a runtime string. Use `DomainIcon` (an unknown domain
-  shows the rainbow rune) and `PowerCost` (one symbol for each point of power, and nothing at power
-  0 or null). Do not read the maps.
-
-Components and pages:
-
-- [client/src/components/CardDetailModal.jsx](client/src/components/CardDetailModal.jsx) is the
-  full-card popup. It is **read-only** and must not change a deck or the collection. The two call
-  sites keep the card **id** and not the card, thus an open popup shows the new price after a
-  refresh. On the tile, the star and the lock stay **outside** the art button.
-- [client/src/components/DeckFilterModal.jsx](client/src/components/DeckFilterModal.jsx) has the
-  deck builder filters, and each option shows the quantity that it gives with all the *other*
-  filters applied. `filterGroups` and `poolCounts` in
-  [DeckBuilderPage](client/src/pages/DeckBuilderPage.jsx) calculate all the counts in **one pass**,
-  and the counts group by `cardIdentity`. Do not calculate the pool again for each option. The
-  domain row follows the legend. With no legend the modal hides TYPE, ENERGY, POWER, MIGHT and
-  RARITY, but keeps their values and gives the name of each hidden filter that is active.
-  `atLimitIds` is built only when the "Available to add" toggle is on **or** the modal is open, thus
-  its predicate must read the toggle and not the set.
-- The pages in [client/src/pages/](client/src/pages/) keep their own UI state and filters, and
-  [client/src/styles.css](client/src/styles.css) is one global stylesheet. The sort on the deck
-  panel puts a card with no value for the key **last in the two directions**, and not at zero.
-
 ### Printings, prices and ownership
 
 The 1383 rows are **printings, and not cards**. There are 946 different cards, and the other rows
-are promos and alternative art. These helpers in `lib/cards.js` keep the differences correct.
+are promos and alternative art. These helpers in `lib/cards.js` keep the differences correct, and
+every page depends on them, thus they stay in this core file.
 
 - **`effectivePrice(card)`** — `card.price` is the price of the *normal* printing, and it is `0` for
   the 813 foil-only cards, whose value is in `foilPrice`. Use `effectivePrice` for a display or a
@@ -180,106 +133,10 @@ The keywords (`[Reaction]`, `[Deflect]`, …) are **not a field**. The code gets
 and removes the number, thus `[Shield 2]` matches "Shield". There are 33 keywords. `[NO TEXT]` is a
 placeholder and the code removes it.
 
-### Deck legality
-
-The builder pool ([DeckBuilderPage](client/src/pages/DeckBuilderPage.jsx)) applies these rules, and
-`deckValidation(deck, cardsById)` in [lib/deck.js](client/src/lib/deck.js) applies them again. A
-filter stops only an *addition*, but a deck import or a new legend can make an added card illegal.
-
-- **Domains** (`withinLegendDomains`) — each card must be in the two domains of the legend, and a
-  multi-domain card needs *all* of its domains. A colorless card, a **battlefield** and a **legend**
-  are exempt. The legend is exempt so that the user can change it.
-- **Signatures** (`signatureAllowed`) — a signature card is legal only with the legend of its
-  champion. Match on **`championOf(legend)`, the name prefix of the legend**, and not on a tag,
-  because the legends also have region tags that signature cards can have.
-- **Signature cap** — `MAX_SIGNATURE_CARDS` is 3. Count the *total across different signature
-  names*, and not 3 of each name.
-- **Banned** — 13 cards. Examine this rule **independently of the legend**, or a deck with no legend
-  has no ban check.
-- **Chosen Champion** (`championMatchesLegend`) — match the tag of the champion unit against
-  `championOf(legend)`. `isChampionUnit` must keep the condition `type === 'Unit'`, because **13
-  legends also have `supertype: 'Champion'`**. If a new legend or an import makes the champion
-  incorrect, the app **shows a message and does not remove the champion**.
-- **Deck size** — the Chosen Champion is one of the 40 cards, thus the main zone holds 39. Use
-  `mainTarget(deck)` and `mainWithChampion(deck)`, and do not compare `zoneCount(deck.main)` with
-  40.
-
-### True Bulk rules
-
-The business logic is in
-[client/src/pages/BulkAnalyzerPage.jsx](client/src/pages/BulkAnalyzerPage.jsx), and not in the
-server. A card is true bulk when **all** of these conditions are true:
-
-- The rarity is Common or Uncommon, and the card is not a Rune and not a token (`isToken`).
-- The card does not have the `Keep` tag. The page reports the quantity that it removed.
-  - The run stores **one flat row list**, and each row carries the `home` list that its price and
-    its play rate give **with the lock ignored**. The page reads the tag at the render and puts
-    every locked row into the "Locked by Keep" list. Thus the lock button moves a card between the
-    lists **at the click** and not at the next run, and a re-run gives the same lists that are on
-    the screen. All the counts and the totals read this live partition.
-- You own a minimum of 1 **normal** copy. A foil never counts.
-- The normal price is less than the price limit (`DEFAULT_PRICE_LIMIT`, $0.25). A null price or a 0
-  price is unknown, and the page removes that card. Do not think that it is inexpensive.
-- The maximum play rate across the meta legends is less than or equal to the play-rate limit
-  (`DEFAULT_PLAY_RATE_LIMIT`, 10%). A card above the limit goes into the "protected by meta" list.
-
-The user can change the two limits, but a reload gives the defaults again. The page puts the values
-into `result` and the text reads them from `result`, thus a change after a run cannot make the text
-different from the table.
-
-The page scans **every legend** on the legends page, and a `sharePct` of 0 does not exclude one,
-because a fringe deck still protects the cards that it plays. The pill list shows each legend that
-the run scanned with its share. A meta map always uses `date_range=all&relevance=3`. The riftdecks names and ids do not
-match the DotGG ids correctly, thus the page records the usage under three keys: the exact id, the
-id with no variant (`OGN-039a` becomes `OGN-039`), and `n:<normName>`. The lookup takes the highest
-play rate of the keys that it finds.
-
-`metagame_id`: 1 is Origins, 2 is Spiritforged, 3 is Unleashed, 4 is Vendetta. Set codes: Origins is
-OGN, Origins Starter / Proving Grounds is OGS, Spiritforged is SFD, Unleashed is UNL, Vendetta is
-VEN, Arcane Box Set is ARC.
-
-### Surplus rules
-
-[client/src/pages/SurplusPage.jsx](client/src/pages/SurplusPage.jsx) shows the copies above
-`deckCopyLimit`, which no deck can use. The page reads the **collection** and not `cards`, because a
-surplus exists only for the cards that you own.
-
-- The copies fold across the printings by `cardIdentity`, and the row shows
-  `dedupeByIdentity(printings)[0]`. A foil counts for the limit as a normal card does.
-- **The surplus value assumes that you keep the most expensive copies.** The page gives a value to
-  each copy (`collectionValue`), sorts them, and the copies after `limit` are the surplus.
-  `surplus × effectivePrice` gives an incorrect value for a group with many foils.
-- The page removes the tokens, the cards with the `Keep` tag, and the collection ids that are not in
-  the card database, and reports a quantity for each. A folded row has the `Keep` tag when **any** of
-  its printings has the tag.
-
 ## Notes
 
-- The card images come from the DotGG CDN through `card.image`, and the app has no local copies. The
-  **domain art is the exception**. [icons/](icons/) has the 1000×1000 originals, which are outside
-  the Vite root and cannot be imported. `scripts/resize-icons.ps1` makes the 14 small files in
-  `client/src/assets/icons/`, and all imports point there. **To add an icon, add it in the two
-  directories.** [vite.config.js](vite.config.js) removes that directory from the inline rule, thus
-  the browser keeps the files in its cache. There is no `client/public/`.
 - These items are out of scope after a decision: binders, product and sealed tracking, card
   scanning, playtest tools and opening-hand tools.
-- The DotGG API has no **power** stat, and its `cost` is the *energy* (generic) cost. `state.jsx`
-  adds `card.power` from the committed baseline
-  [client/src/data/powerCosts.json](client/src/data/powerCosts.json), then from the runtime overlay
-  `data/power.json`. **The baseline wins**, thus an import cannot change a known value. The values
-  fold across the printings by `cardIdentity`.
-  - Power is **null** for a card with no power concept. `hasPowerConcept` in
-    [server/power.js](server/power.js) needs a `cost` that is not null and refuses a token. Thus the
-    Legends, the Battlefields, the Runes and the double-faced tokens have no power.
-  - The source is the keyless `api.riftcodex.com/cards`. Take **only `power`** from it, because it
-    has no prices and cannot replace DotGG.
-  - The fetch and the join are in [server/power.js](server/power.js), and the two writers use this
-    same code: `node scripts/build-power-costs.mjs` writes the baseline after a new set, and `POST
-    /api/power/import` (the **Import Power** button on the Config page) writes the missing values
-    into `data/power.json`. The button sends only the ids that are null.
-  - The baseline is in git, because the client `import`s it at the build and nothing makes it again.
-  - `state.jsx` gets `GET /api/power` with a `.catch` fallback, because an Express process from
-    before these routes sends a 404. **Restart Express** after you pull this change.
 
 ## TODO
 

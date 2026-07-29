@@ -1,3 +1,4 @@
+// Rules: docs/libraries.md and docs/components.md (domain-art assets)
 // The game's domain art, as bundled 64x64 PNGs. The 1000x1000 originals live in
 // the repo-root icons/ folder, which sits outside Vite's root (vite.config.js
 // sets root: 'client'); scripts/resize-icons.ps1 downscales the 14 the UI uses

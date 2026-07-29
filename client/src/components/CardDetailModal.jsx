@@ -1,3 +1,4 @@
+// Rules: docs/components.md
 import React, { useEffect } from 'react';
 import Modal from './Modal.jsx';
 import CardText from './CardText.jsx';

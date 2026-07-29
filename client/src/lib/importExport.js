@@ -1,3 +1,4 @@
+// Rules: docs/libraries.md
 import { SET_CODE_BY_NAME, normName, routeFinish } from './cards.js';
 import { csvCell } from './download.js';
 

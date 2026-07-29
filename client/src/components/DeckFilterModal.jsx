@@ -1,3 +1,4 @@
+// Rules: docs/deck-builder.md
 import React from 'react';
 import Modal from './Modal.jsx';
 import DomainIcon from './DomainIcon.jsx';

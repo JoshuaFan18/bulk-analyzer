@@ -1,3 +1,4 @@
+// Rules: docs/deck-builder.md
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api.js';

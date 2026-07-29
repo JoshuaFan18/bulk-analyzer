@@ -1,3 +1,4 @@
+// Rules: docs/power-costs.md
 import { readJson, writeJson } from './store.js';
 
 // POWER (colored) cost, the one gameplay stat the DotGG feed does not carry --

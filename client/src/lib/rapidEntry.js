@@ -1,3 +1,4 @@
+// Rules: docs/libraries.md
 import { ownedCopies, routeFinish } from './cards.js';
 
 // Rapid entry: one person reads collector numbers aloud, the other types them

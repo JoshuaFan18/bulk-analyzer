@@ -136,7 +136,8 @@ app.get(
     getMetaMap(req.params.metagameId, req.params.slug, { refresh: req.query.refresh === '1' })
   )
 );
-// The whole-format list for the Staples Analyzer "Overall" mode. It has no
+// The whole-format list for the Staples Analyzer "Field" and "Overlap" modes.
+// It has no
 // metagame id, because riftdecks.com ranks it over every Constructed deck.
 app.get(
   '/api/meta/staples',

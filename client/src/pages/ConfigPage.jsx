@@ -155,8 +155,8 @@ export default function ConfigPage() {
       )}
 
       <p className="muted">
-        The Staples Analyzer "Overall" mode reads the most played cards of the whole format from a
-        second cache file. It walks the paged list until the popularity falls under 1%, thus a
+        The Staples Analyzer "Field" and "Overlap" modes read the most played cards of the whole
+        format from a second cache file. It walks the paged list until the popularity falls under 1%, thus a
         refresh costs one request for each page, and about 20 pages at this time.
       </p>
 

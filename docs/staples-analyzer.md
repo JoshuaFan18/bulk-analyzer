@@ -8,39 +8,53 @@ must stay in agreement about it.
 The page answers the opposite question to the True Bulk analyzer: which cards does the meta play in
 almost every list. The business logic is in the page, and not in the server.
 
-## The two modes
+## The three modes
 
-The page asks one of two questions, and `MODES` holds the difference between them:
+The page asks one of three questions, and `MODES` holds the difference between them as two flags,
+`deckSide` and `fieldSide`, which say which source the mode reads. **Ask the flags, and not the mode
+name**, or Overlap falls out of a test that a later mode must also pass:
 
 - **Deck based** (`deck`, the default) — which card does one meta deck play in almost every list.
-  The measure is the play rate of a legend, thus the default limit is 50%.
-- **Overall** (`overall`) — which card does the format play. The measure is the *popularity* on
+  The measure is the play rate of a legend, thus its limit (`DEFAULT_DECK_LIMIT`) is 50%.
+- **Field** (`field`) — which card does the format play. The measure is the *popularity* on
   riftdecks.com/staples, which is a share **of the most played card** and not a share of the lists,
-  thus the same 50% would answer a different question. **The default limit is 10%.**
+  thus the same 50% would answer a different question. **Its limit (`DEFAULT_FIELD_LIMIT`) is 10%.**
+- **Overlap** (`overlap`) — reads the two sources and joins the two tests with the operator in the
+  Join select: **AND** (the default, the narrow question: a staple of a deck that the whole field
+  also plays) or **OR** (the wide question: a staple of either measure).
 
-The two measures are not comparable. Do not give them one default, and do not put the two numbers
-into one column.
+The two measures are not comparable. They keep **two inputs**, two labels and two columns, and they
+are never given one limit. Overlap shows the two inputs and the operator between them; each other
+mode shows its own one.
 
-A mode carries its own default limit, and the switch writes that default into the input, thus the
-50 of a Deck-based run cannot stay behind and empty an Overall list.
+A mode switch writes the two defaults into the two inputs, thus the 50 of a Deck-based run cannot
+stay behind and empty the popularity test of the next run.
 
-`result.mode` holds the mode of the **run**, and every label, every text and the CSV read it from
-there (`resultMode`), and not from the control. Thus a user who moves the select after a run cannot
-make the table say something the numbers do not.
+`result.mode`, `result.combine` and `result.limits` hold the values of the **run**, and every label,
+every text and the CSV read them from there (`resultMode`, `resultSides`, `ruleText`), and not from
+the controls. Thus a user who moves a control after a run cannot make the table say something the
+numbers do not.
 
-Overall mode has no legend split, thus it gives each row one pseudo-deck, `OVERALL_LEGEND`. The
-shape is the shape of a meta-map entry, and the pool loop, the two lists, the sort and the popup
-never ask which mode made a row. Where the whole-format list carries no value (metashare, deck
-count, win rate) the page **removes the column** rather than showing a dash on every row, and it
-hides the "Decks above limit" sort, which would find one deck on each row.
+The field source has no legend split, thus it gives each of its hits one pseudo-deck, `FIELD_LEGEND`.
+The shape is the shape of a meta-map entry, and the pool loop, the two lists, the sort and the popup
+never ask which source made a row. Where the whole-format list carries no value (metashare, deck
+count, win rate) a **Field** run **removes the column** rather than showing a dash on every row, and
+it hides the "Decks above limit" sort, which would find one deck on each row. An **Overlap** run
+keeps those columns, because its rows also hold real meta decks, and the field row shows a dash in
+them.
+
+Each rate has its own sort (`playRate`, `popularity`), and a run offers only the sorts of the
+sources it read. A sort that the new mode does not offer is moved to one it does before the result
+is set, or the select would show a value that no option holds. A missing rate sorts as `-1`
+(`rateOf`), thus an OR row that one side alone found goes to the end of the list and not to the top.
 
 ## The rule
 
-A card is a staple when its rate is **more than** the limit in a minimum of **one** scanned deck.
-The limit is strictly greater, thus a card at exactly the limit is not a staple. The user can change
-the limit, but a reload and a mode switch give the default of the mode again. The page puts the
-value into `result`, and the text reads it from `result`, thus a change after a run cannot make the
-text different from the list.
+A card is a staple when its rate is **more than** the limit in a minimum of **one** scanned deck (in
+Overlap, on each side that the operator needs). The limit is strictly greater, thus a card at exactly
+the limit is not a staple. The user can change the limit, but a reload and a mode switch give the
+defaults again. The page puts the values into `result.limits`, and the text reads them from there,
+thus a change after a run cannot make the text different from the list.
 
 The rule reads the rate only. The price, the rarity and the ownership have no effect, thus a card
 that you do not own is in the list. The detail panel shows the copies that you own, folded across
@@ -48,8 +62,8 @@ the printings (`ownedAcrossPrintings`), because the list holds one row for each 
 
 ## The data
 
-Deck-based mode uses `api.getMetaLegends` and `api.getMetaMap`, the same two endpoints and the same
-`data/meta-cache/` files as the True Bulk analyzer. Overall mode uses `api.getStaples`
+The deck side uses `api.getMetaLegends` and `api.getMetaMap`, the same two endpoints and the same
+`data/meta-cache/` files as the True Bulk analyzer. The field side uses `api.getStaples`
 (`GET /api/meta/staples`, cached in `data/meta-cache/staples.json`), which has **no metagame id**,
 because riftdecks.com ranks that list over every Constructed deck of the last 30 days. **The page
 never sends `refresh`**, thus a run is local and inexpensive after the first one. The Config page is
@@ -62,14 +76,17 @@ The riftdecks names and ids do not match the DotGG ids correctly, thus the page 
 under the same three keys as the bulk analyzer: the exact id, the id with no variant (`OGN-039a`
 becomes `OGN-039`), and `n:<normName>`. The staples list gives **two** ids for one card, because the
 collector number and the image disagree for the runes (`VEN-R02` against the `OGN-042` image), thus
-Overall mode records both. **The usage map holds one entry for each legend under each key**, and not
-one maximum for all the legends, because Deck-based mode must show the play rate of each deck. The
-lookup merges the keys and keeps the highest rate **for each legend**, thus a card that resolves on
-two keys cannot count one deck two times.
+the field side records both. **The usage map holds one entry for each legend under each key**, and
+not one maximum for all the legends, because the deck side must show the play rate of each deck. The
+lookup (`hitsFor`) merges the keys and keeps the highest rate **for each legend**, thus a card that
+resolves on two keys cannot count one deck two times.
+
+The two sources go into **two maps** (`deckUsage`, `fieldUsage`), and never into one, because Overlap
+must test the two of them separately: one map would compare a play rate against a popularity.
 
 A card above the limit on riftdecks.com that no printing matches cannot reach the list. The page
-counts these and gives the names under the list. **Do not remove that text.** Without it a parser
-change makes staples disappear in silence.
+counts these and gives the names under the list, each source against its own limit. **Do not remove
+that text.** Without it a parser change makes staples disappear in silence.
 
 ### The staples parser
 
@@ -102,7 +119,11 @@ the next render.
 The one toolbar above the panels drives the two lists together (search, sets, domains, rarity,
 sort). The rarity select **joins Common and Uncommon into one choice** (`LOW_RARITY`), because a
 staple at those two rarities answers the same question. Its value is not a rarity name, thus it
-cannot match a card by accident, and the filter must expand it to `LOW_RARITIES` before the test. The `Keep` lock is in the table for the same reason as on the bulk page: a staple is exactly
+cannot match a card by accident, and the filter must expand it to `LOW_RARITIES` before the test.
+
+The CSV holds the columns of the sources the run read, thus an Overlap file has the two rates, and
+its name says the operator (`staples-overlap-and-1.csv`) because the two operators give two very
+different lists from the same limits. The `Keep` lock is in the table for the same reason as on the bulk page: a staple is exactly
 the card that must never go to the bulk box. **The lock does not move a row here**, because the
 lists ask about ownership and not about the lock.
 
@@ -111,7 +132,9 @@ lists ask about ownership and not about the lock.
 The thumbnail opens the **meta-deck popup**, and not the card detail popup: the list is for the
 scan, and this is for the analysis. It gives the art, the copies you own against the playset target,
 and one row for each deck above the limit with the metashare of the deck, the play rate, the average
-copies, the deck count and the win rate. An Overall run has one row, the popularity and the average
-copies only, for the reason in "The two modes". A button in it opens the usual read-only
+copies, the deck count and the win rate. A Field run has one row, the popularity and the average
+copies only, for the reason in "The three modes". An Overlap run puts the meta decks first and the
+field row last, thus the CSV reads the **last** row for the average copies of the whole format. A
+button in it opens the usual read-only
 `CardDetailModal`. **The two popups never show at one time** — the page hides the meta-deck popup
 while the detail popup is open, thus one backdrop cannot sit over the other.

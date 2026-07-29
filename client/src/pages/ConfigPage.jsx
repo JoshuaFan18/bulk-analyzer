@@ -15,6 +15,12 @@ export default function ConfigPage() {
   const [metaResult, setMetaResult] = useState(null);
   const [metaError, setMetaError] = useState(null);
 
+  // The whole-format staples list has no metagame and no legend walk, thus it
+  // refreshes on its own button.
+  const [staplesPhase, setStaplesPhase] = useState('idle'); // idle | run | done | error
+  const [staplesResult, setStaplesResult] = useState(null);
+  const [staplesError, setStaplesError] = useState(null);
+
   const effectiveMetagameId = customId.trim() || metagameId;
   const refreshingMeta = metaPhase === 'legends' || metaPhase === 'maps';
 
@@ -41,6 +47,22 @@ export default function ConfigPage() {
     } catch (e) {
       setMetaError(e.message);
       setMetaPhase('error');
+    }
+  };
+
+  // Same rule as the legend walk: the Staples Analyzer only reads the cache,
+  // thus this button is the one place that goes to riftdecks.com/staples.
+  const refreshStaples = async () => {
+    setStaplesPhase('run');
+    setStaplesError(null);
+    setStaplesResult(null);
+    try {
+      const res = await api.getStaples(true);
+      setStaplesResult({ cardCount: res.cards.length, pages: res.pages });
+      setStaplesPhase('done');
+    } catch (e) {
+      setStaplesError(e.message);
+      setStaplesPhase('error');
     }
   };
 
@@ -130,6 +152,26 @@ export default function ConfigPage() {
         <p className="muted">
           Refreshed {metaResult.legendCount} legend(s) for metagame {metaResult.metagameId}.
         </p>
+      )}
+
+      <p className="muted">
+        The Staples Analyzer "Overall" mode reads the most played cards of the whole format from a
+        second cache file. It walks the paged list until the popularity falls under 1%, thus a
+        refresh costs one request for each page, and about 20 pages at this time.
+      </p>
+
+      <div className="toolbar">
+        <button onClick={refreshStaples} disabled={staplesPhase === 'run'}>
+          {staplesPhase === 'run' ? 'Refreshing staples…' : 'Refresh staples list'}
+        </button>
+        {staplesResult && staplesPhase === 'done' && (
+          <span className="count-note">
+            Refreshed {staplesResult.cardCount} card(s) from {staplesResult.pages} page(s).
+          </span>
+        )}
+      </div>
+      {staplesPhase === 'error' && (
+        <div className="error-banner">Staples refresh failed: {staplesError}</div>
       )}
 
       <div className="section-head">

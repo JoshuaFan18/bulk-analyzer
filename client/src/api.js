@@ -32,4 +32,5 @@ export const api = {
     request(`/api/meta/legends/${metagameId}${refresh ? '?refresh=1' : ''}`),
   getMetaMap: (metagameId, slug, refresh = false) =>
     request(`/api/meta/metamap/${metagameId}/${slug}${refresh ? '?refresh=1' : ''}`),
+  getStaples: (refresh = false) => request(`/api/meta/staples${refresh ? '?refresh=1' : ''}`),
 };

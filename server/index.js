@@ -5,7 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { getCards, refreshCards } from './cards.js';
 import { getPower, importPower } from './power.js';
-import { getLegends, getMetaMap } from './riftdecks.js';
+import { getLegends, getMetaMap, getStaples } from './riftdecks.js';
 import { readJson, writeJson, listJson, deleteJson } from './store.js';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -135,6 +135,12 @@ app.get(
   handle((req) =>
     getMetaMap(req.params.metagameId, req.params.slug, { refresh: req.query.refresh === '1' })
   )
+);
+// The whole-format list for the Staples Analyzer "Overall" mode. It has no
+// metagame id, because riftdecks.com ranks it over every Constructed deck.
+app.get(
+  '/api/meta/staples',
+  handle((req) => getStaples({ refresh: req.query.refresh === '1' }))
 );
 
 // ---- Static frontend (production build) ----

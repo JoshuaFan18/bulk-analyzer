@@ -52,6 +52,15 @@ export async function getLegends(metagameId, { refresh = false } = {}) {
   return payload;
 }
 
+// The staples page is a paged grid, and not one page with every card. The floor
+// and the page cap stop the walk: below 1% the list answers no question the page
+// asks, and 25 pages (500 cards) is more than the whole card pool.
+const STAPLES_MIN_POPULARITY = 1;
+const STAPLES_MAX_PAGES = 25;
+const STAPLES_PAGE_DELAY_MS = 750;
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 function cardIdFromImg(img) {
   // "/img/cards/riftbound//OGN/ogn-039a-298_cropped.png" -> "OGN-039a"
   const m = String(img).match(/\/([a-z]{2,4})-(\d+[a-z]?)-\d+[a-z]?_/i);
@@ -93,6 +102,70 @@ export async function getMetaMap(metagameId, slug, { refresh = false } = {}) {
     metagameId: String(metagameId),
     slug: safeSlug,
     url,
+    cards,
+  };
+  await writeJson(cacheFile, payload);
+  return payload;
+}
+
+// One page of the staples grid. Each card is a column div that carries the card
+// in data attributes, with the two numbers in the block under the image.
+function parseStaplesPage(html) {
+  const $ = cheerio.load(html);
+  const cards = [];
+  $('div[data-collector_number]').each((_, el) => {
+    const $el = $(el);
+    const name = ($el.attr('data-name') || '').trim();
+    // "OGN-045/298" -> "OGN-045". A rune keeps its "VEN-R02" form, which is why
+    // the image id is kept as well: the two disagree for the runes.
+    const collector = ($el.attr('data-collector_number') || '').split('/')[0].trim();
+    const img = $el.find('img').first().attr('src') || '';
+    const popularity = parseFloat($el.find('.text-rainbow span').first().text());
+    const copies = parseFloat($el.find('.text-muted span').first().text());
+    if (!name || !Number.isFinite(popularity)) return;
+    cards.push({
+      name,
+      cardId: collector ? collector.toUpperCase() : null,
+      imgCardId: cardIdFromImg(img),
+      popularity,
+      copies: Number.isFinite(copies) ? copies : null,
+    });
+  });
+  return cards;
+}
+
+// The whole-format "most played cards" list, which is one ranking over every
+// Constructed deck and has no legend split. The walk stops at the floor, thus a
+// run costs about 23 pages at this time, and not the full 45.
+export async function getStaples({ refresh = false } = {}) {
+  const cacheFile = 'meta-cache/staples.json';
+  if (!refresh) {
+    const cached = await readJson(cacheFile);
+    if (cached) return cached;
+  }
+
+  const cards = [];
+  let pages = 0;
+  for (let page = 1; page <= STAPLES_MAX_PAGES; page++) {
+    const url = page === 1 ? `${BASE}/staples` : `${BASE}/staples?page=${page}`;
+    if (page > 1) await sleep(STAPLES_PAGE_DELAY_MS);
+    const rows = parseStaplesPage(await fetchHtml(url));
+    pages = page;
+    if (rows.length === 0) break;
+    cards.push(...rows);
+    if (rows[rows.length - 1].popularity < STAPLES_MIN_POPULARITY) break;
+  }
+
+  if (cards.length === 0) {
+    throw new Error('No staples found on riftdecks.com/staples — the page may have changed');
+  }
+
+  const payload = {
+    fetchedAt: new Date().toISOString(),
+    url: `${BASE}/staples`,
+    pages,
+    // The client says so when the user asks for a limit the walk never reached.
+    minPopularity: STAPLES_MIN_POPULARITY,
     cards,
   };
   await writeJson(cacheFile, payload);

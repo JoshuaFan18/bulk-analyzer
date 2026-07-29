@@ -27,7 +27,35 @@ import Modal from '../components/Modal.jsx';
 const PREVIEW_W = 260;
 const PREVIEW_H = 364;
 
-const DEFAULT_STAPLE_LIMIT = 50;
+// The two questions the page can ask. "Deck based" reads the per-legend meta
+// maps, thus a staple is a card one deck almost always plays. "Overall" reads
+// the whole-format staples list, thus a staple is a card the format plays. The
+// second measure is a popularity against the most played card, and not a share
+// of the lists, thus it needs its own, much lower, default.
+const MODES = {
+  deck: {
+    label: 'Deck based',
+    limitLabel: 'Play rate above (%)',
+    defaultLimit: 50,
+    rateColumn: 'Max meta play rate',
+  },
+  overall: {
+    label: 'Overall',
+    limitLabel: 'Popularity above (%)',
+    defaultLimit: 10,
+    rateColumn: 'Popularity',
+  },
+};
+
+// Overall mode has one ranking and no legends, thus every row carries this one
+// pseudo-deck. The shape stays the same as a meta-map entry, so the pool loop,
+// the lists and the popup do not have to know which mode made them.
+const OVERALL_LEGEND = 'All Constructed decks';
+
+// The rarity filter joins the two low rarities into one choice. The value is
+// not a rarity name, thus it cannot hit a card by accident.
+const LOW_RARITIES = ['Common', 'Uncommon'];
+const LOW_RARITY = 'common+uncommon';
 
 const stripVariant = (id) => String(id).replace(/([0-9])[a-z]$/i, '$1');
 
@@ -99,7 +127,7 @@ function KeepButton({ card, kept, onToggle }) {
 // The bulk table columns, with no Remove column: this page never changes the
 // collection. The copies are folded across the printings, because a row is a
 // card and not a printing.
-function ResultTable({ rows, onOpen, onHover, onToggleKeep }) {
+function ResultTable({ rows, mode, onOpen, onHover, onToggleKeep }) {
   return (
     <table className="data">
       <thead>
@@ -110,7 +138,7 @@ function ResultTable({ rows, onOpen, onHover, onToggleKeep }) {
           <th className="num">Copies owned</th>
           <th className="num">Price</th>
           <th className="num">Value</th>
-          <th className="num">Max meta play rate</th>
+          <th className="num">{MODES[mode].rateColumn}</th>
           <th>{KEEP_TAG}</th>
         </tr>
       </thead>
@@ -127,11 +155,15 @@ function ResultTable({ rows, onOpen, onHover, onToggleKeep }) {
             <td className="num">{money(e.value)}</td>
             <td className="num">
               {e.topPlayRate}%
-              <span className="muted">
-                {' '}
-                ({e.topLegend}
-                {e.deckCount > 1 ? ` +${e.deckCount - 1}` : ''})
-              </span>
+              {/* Overall mode has one ranking, thus naming its one pseudo-deck
+                  on every row would say nothing. */}
+              {mode === 'deck' && (
+                <span className="muted">
+                  {' '}
+                  ({e.topLegend}
+                  {e.deckCount > 1 ? ` +${e.deckCount - 1}` : ''})
+                </span>
+              )}
             </td>
             <td>
               <KeepButton card={e.card} kept={e.keep} onToggle={onToggleKeep} />
@@ -166,9 +198,12 @@ function ResultPanel({ title, rows, total, open, children, empty, noRows, tableP
 // The second half of the page: the deck-by-deck answer for one card. The
 // thumbnail opens it, thus the list stays the place to scan and this is the
 // place to analyze.
-function MetaDecksModal({ row, owned, limit, onClose, onDetails }) {
+function MetaDecksModal({ row, owned, limit, mode, onClose, onDetails }) {
   const target = playsetTarget(row.card);
   const short = target - owned.total;
+  // The whole-format list carries no metashare, no deck count and no win rate,
+  // thus those columns would be four dashes on every row.
+  const byDeck = mode === 'deck';
   return (
     <Modal
       className="wide"
@@ -208,29 +243,31 @@ function MetaDecksModal({ row, owned, limit, onClose, onDetails }) {
           <table className="data">
             <thead>
               <tr>
-                <th>Meta deck</th>
-                <th className="num">Deck metashare</th>
-                <th className="num">Play rate</th>
+                <th>{byDeck ? 'Meta deck' : 'Scope'}</th>
+                {byDeck && <th className="num">Deck metashare</th>}
+                <th className="num">{byDeck ? 'Play rate' : 'Popularity'}</th>
                 <th className="num">Average copies</th>
-                <th className="num">Decks</th>
-                <th className="num">Win rate</th>
+                {byDeck && <th className="num">Decks</th>}
+                {byDeck && <th className="num">Win rate</th>}
               </tr>
             </thead>
             <tbody>
               {row.decks.map((d) => (
                 <tr key={d.legend}>
                   <td>{d.legend}</td>
-                  <td className="num">{d.legendShare}%</td>
+                  {byDeck && <td className="num">{d.legendShare}%</td>}
                   <td className="num">{d.playRate}%</td>
                   <td className="num">{d.copies ?? '—'}</td>
-                  <td className="num">{d.decks ?? '—'}</td>
-                  <td className="num">{d.winRate != null ? `${d.winRate}%` : '—'}</td>
+                  {byDeck && <td className="num">{d.decks ?? '—'}</td>}
+                  {byDeck && <td className="num">{d.winRate != null ? `${d.winRate}%` : '—'}</td>}
                 </tr>
               ))}
             </tbody>
           </table>
           <p className="muted" style={{ marginTop: 8 }}>
-            Every deck that plays this card in more than {limit}% of its lists.
+            {byDeck
+              ? `Every deck that plays this card in more than ${limit}% of its lists.`
+              : `Popularity against the most played card of the last 30 days, above the ${limit}% limit.`}
           </p>
           <button onClick={() => onDetails(row.card.id)}>Full card details</button>
         </div>
@@ -241,10 +278,11 @@ function MetaDecksModal({ row, owned, limit, onClose, onDetails }) {
 
 export default function StaplesAnalyzerPage() {
   const { cards, cardsById, ownedIndex, tags, toggleCardTag } = useApp();
+  const [mode, setMode] = useState('deck'); // deck | overall
   const [metagameId, setMetagameId] = useState('1');
   const [customId, setCustomId] = useState('');
-  const [stapleLimit, setStapleLimit] = useState(String(DEFAULT_STAPLE_LIMIT));
-  const [phase, setPhase] = useState('idle'); // idle | legends | maps | done | error
+  const [stapleLimit, setStapleLimit] = useState(String(MODES.deck.defaultLimit));
+  const [phase, setPhase] = useState('idle'); // idle | legends | maps | staples | done | error
   const [progress, setProgress] = useState({ current: 0, total: 0, name: '' });
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
@@ -283,16 +321,11 @@ export default function StaplesAnalyzerPage() {
   const effectiveId = customId.trim() || metagameId;
 
   const run = async () => {
-    setPhase('legends');
+    setPhase(mode === 'overall' ? 'staples' : 'legends');
     setError(null);
     setResult(null);
     setDecksId(null);
     try {
-      const legendsRes = await api.getMetaLegends(effectiveId);
-      // Every legend on the page counts, at any metashare: one deck that plays
-      // a card in almost every list makes it a staple of that deck.
-      const allLegends = legendsRes.legends;
-
       // key -> Map(legend name -> the usage row). The keys are the same three
       // the bulk analyzer uses, because the riftdecks ids do not match the
       // DotGG ids. A legend appears one time per key, at its highest play rate,
@@ -306,38 +339,78 @@ export default function StaplesAnalyzerPage() {
         usage.set(key, byLegend);
       };
 
-      setPhase('maps');
-      setProgress({ current: 0, total: allLegends.length, name: '' });
-      for (let i = 0; i < allLegends.length; i++) {
-        const legend = allLegends[i];
-        setProgress({ current: i, total: allLegends.length, name: legend.name });
-        const mm = await api.getMetaMap(effectiveId, legend.slug);
-        for (const c of mm.cards) {
-          if (c.playRate == null) continue;
+      let allLegends = [];
+      let fetchedAt;
+      let source = null;
+
+      if (mode === 'overall') {
+        const staples = await api.getStaples();
+        fetchedAt = staples.fetchedAt;
+        source = {
+          cardCount: staples.cards.length,
+          // The walk stops at this popularity, thus a lower limit cannot show
+          // more cards and the page has to say so.
+          minPopularity: staples.minPopularity,
+        };
+        for (const c of staples.cards) {
           const entry = {
-            legend: legend.name,
-            legendShare: legend.sharePct,
+            legend: OVERALL_LEGEND,
+            legendShare: null,
             name: c.name,
-            playRate: c.playRate,
+            playRate: c.popularity,
             copies: c.copies ?? null,
-            decks: c.decks ?? null,
-            winRate: c.winRate ?? null,
+            decks: null,
+            winRate: null,
           };
-          if (c.cardId) {
-            record(c.cardId.toUpperCase(), entry);
-            record(stripVariant(c.cardId.toUpperCase()), entry);
+          // The collector number and the image disagree for the runes
+          // ("VEN-R02" against the OGN image), thus both ids are keys.
+          for (const id of [c.cardId, c.imgCardId]) {
+            if (!id) continue;
+            record(id.toUpperCase(), entry);
+            record(stripVariant(id.toUpperCase()), entry);
           }
           record(`n:${normName(c.name)}`, entry);
         }
-        setProgress({ current: i + 1, total: allLegends.length, name: legend.name });
+      } else {
+        const legendsRes = await api.getMetaLegends(effectiveId);
+        // Every legend on the page counts, at any metashare: one deck that
+        // plays a card in almost every list makes it a staple of that deck.
+        allLegends = legendsRes.legends;
+        fetchedAt = legendsRes.fetchedAt;
+
+        setPhase('maps');
+        setProgress({ current: 0, total: allLegends.length, name: '' });
+        for (let i = 0; i < allLegends.length; i++) {
+          const legend = allLegends[i];
+          setProgress({ current: i, total: allLegends.length, name: legend.name });
+          const mm = await api.getMetaMap(effectiveId, legend.slug);
+          for (const c of mm.cards) {
+            if (c.playRate == null) continue;
+            const entry = {
+              legend: legend.name,
+              legendShare: legend.sharePct,
+              name: c.name,
+              playRate: c.playRate,
+              copies: c.copies ?? null,
+              decks: c.decks ?? null,
+              winRate: c.winRate ?? null,
+            };
+            if (c.cardId) {
+              record(c.cardId.toUpperCase(), entry);
+              record(stripVariant(c.cardId.toUpperCase()), entry);
+            }
+            record(`n:${normName(c.name)}`, entry);
+          }
+          setProgress({ current: i + 1, total: allLegends.length, name: legend.name });
+        }
       }
 
-      // Blank or nonsense input falls back to the default rather than
-      // analyzing against NaN.
+      // Blank or nonsense input falls back to the default of this mode rather
+      // than analyzing against NaN.
       const minPlayRate =
         Number(stapleLimit) >= 0 && stapleLimit !== ''
           ? Number(stapleLimit)
-          : DEFAULT_STAPLE_LIMIT;
+          : MODES[mode].defaultLimit;
 
       // One row for each real card, and not for each printing: the list must
       // not hold the same card three times because it has two alt arts.
@@ -387,14 +460,20 @@ export default function StaplesAnalyzerPage() {
         }
       }
 
+      // "Decks above limit" counts one pseudo-deck for every row of an Overall
+      // run, thus the sort would do nothing and the option is not offered.
+      if (mode === 'overall' && sort === 'decks') setSort('playRate');
+
       setResult({
+        // Captured so every label and every text describes the run that made
+        // these lists, and not whatever the controls say now.
+        mode,
         metagameId: effectiveId,
-        fetchedAt: legendsRes.fetchedAt,
+        fetchedAt,
         allLegends,
+        source,
         rows,
         unmatched: [...unmatched].sort(),
-        // Captured so the text describes the run that made these lists, and
-        // not whatever the input says now.
         stapleLimit: minPlayRate,
       });
       setPhase('done');
@@ -450,10 +529,20 @@ export default function StaplesAnalyzerPage() {
     );
   };
 
-  const rarityOptions = useMemo(
-    () => RARITIES.filter((r) => allRows.some((e) => e.card.rarity === r)),
-    [allRows]
-  );
+  // Common and Uncommon are one choice: a staple at those two rarities is the
+  // same question ("which inexpensive card does the meta play"), and the split
+  // only made the user look two times.
+  const rarityOptions = useMemo(() => {
+    const has = (r) => allRows.some((e) => e.card.rarity === r);
+    const out = [];
+    if (has('Common') || has('Uncommon')) {
+      out.push({ value: LOW_RARITY, label: 'Common / Uncommon' });
+    }
+    for (const r of RARITIES) {
+      if (!LOW_RARITIES.includes(r) && has(r)) out.push({ value: r, label: r });
+    }
+    return out;
+  }, [allRows]);
 
   // The one question the page exists to answer: which staples are already in
   // the binder, and which are not.
@@ -476,7 +565,10 @@ export default function StaplesAnalyzerPage() {
             const list = e.card.colors?.length ? e.card.colors : ['Colorless'];
             if (!domainFilter.some((d) => list.includes(d))) return false;
           }
-          if (rarityFilter !== 'any' && e.card.rarity !== rarityFilter) return false;
+          if (rarityFilter !== 'any') {
+            const list = rarityFilter === LOW_RARITY ? LOW_RARITIES : [rarityFilter];
+            if (!list.includes(e.card.rarity)) return false;
+          }
           return true;
         })
         .sort(SORTS[sort]);
@@ -497,23 +589,48 @@ export default function StaplesAnalyzerPage() {
     [full]
   );
 
+  // The two modes measure different things, thus the file says which one made
+  // it, both in the rate column and in the name.
   const exportCsv = () => {
-    const lines = [
-      'CardId,Name,Set,Rarity,CopiesOwned,Price,TotalValue,TopPlayRate,TopLegend,DecksAboveLimit',
-    ];
+    const byDeck = result.mode === 'deck';
+    const head = byDeck
+      ? 'CardId,Name,Set,Rarity,CopiesOwned,Price,TotalValue,TopPlayRate,TopLegend,DecksAboveLimit'
+      : 'CardId,Name,Set,Rarity,CopiesOwned,Price,TotalValue,Popularity,AverageCopies';
+    const lines = [head];
     for (const e of [...visibleOwned, ...visibleMissing]) {
+      const common = `${e.card.id},${csvCell(e.card.name)},${e.card.setCode},${e.card.rarity},${
+        e.copies
+      },${e.price.toFixed(2)},${e.value.toFixed(2)},${e.topPlayRate}`;
       lines.push(
-        `${e.card.id},${csvCell(e.card.name)},${e.card.setCode},${e.card.rarity},${e.copies},${e.price.toFixed(
-          2
-        )},${e.value.toFixed(2)},${e.topPlayRate},${csvCell(e.topLegend)},${e.deckCount}`
+        byDeck
+          ? `${common},${csvCell(e.topLegend)},${e.deckCount}`
+          : `${common},${e.decks[0].copies ?? ''}`
       );
     }
-    downloadText(`staples-metagame-${result.metagameId}.csv`, lines.join('\n'));
+    downloadText(
+      byDeck ? `staples-metagame-${result.metagameId}.csv` : 'staples-overall.csv',
+      lines.join('\n')
+    );
   };
 
-  const running = phase === 'legends' || phase === 'maps';
+  const running = phase === 'legends' || phase === 'maps' || phase === 'staples';
   const decksRow = decksId ? allRows.find((e) => e.card.id === decksId) : null;
-  const tableProps = { onOpen: setDecksId, onHover: showHover, onToggleKeep: toggleCardTag };
+  // The mode of the run, and not of the controls: the table must not relabel
+  // its columns while the user picks the next run.
+  const resultMode = result?.mode ?? 'deck';
+  const tableProps = {
+    mode: resultMode,
+    onOpen: setDecksId,
+    onHover: showHover,
+    onToggleKeep: toggleCardTag,
+  };
+
+  // A mode carries its own limit, thus the switch gives the default of the mode
+  // the user moved to and not the number the other mode used.
+  const changeMode = (next) => {
+    setMode(next);
+    setStapleLimit(String(MODES[next].defaultLimit));
+  };
 
   return (
     <div>
@@ -521,28 +638,44 @@ export default function StaplesAnalyzerPage() {
 
       <div className="bulk-controls">
         <label className="field">
-          <span>Metagame</span>
-          <select value={metagameId} onChange={(e) => setMetagameId(e.target.value)}>
-            {METAGAME_PRESETS.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
+          <span>Mode</span>
+          <select value={mode} onChange={(e) => changeMode(e.target.value)}>
+            {Object.entries(MODES).map(([key, m]) => (
+              <option key={key} value={key}>
+                {m.label}
               </option>
             ))}
           </select>
         </label>
+        {/* The whole-format list has no metagame, thus the two id controls
+            belong to Deck based mode only. */}
+        {mode === 'deck' && (
+          <>
+            <label className="field">
+              <span>Metagame</span>
+              <select value={metagameId} onChange={(e) => setMetagameId(e.target.value)}>
+                {METAGAME_PRESETS.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>Custom metagame id (optional)</span>
+              <input
+                type="number"
+                min="1"
+                placeholder="overrides preset"
+                value={customId}
+                onChange={(e) => setCustomId(e.target.value)}
+                style={{ width: 160 }}
+              />
+            </label>
+          </>
+        )}
         <label className="field">
-          <span>Custom metagame id (optional)</span>
-          <input
-            type="number"
-            min="1"
-            placeholder="overrides preset"
-            value={customId}
-            onChange={(e) => setCustomId(e.target.value)}
-            style={{ width: 160 }}
-          />
-        </label>
-        <label className="field">
-          <span>Play rate above (%)</span>
+          <span>{MODES[mode].limitLabel}</span>
           <input
             type="number"
             min="0"
@@ -558,6 +691,9 @@ export default function StaplesAnalyzerPage() {
         </button>
       </div>
 
+      {phase === 'staples' && (
+        <div className="bulk-progress">Reading the most played cards of the format…</div>
+      )}
       {phase === 'legends' && (
         <div className="bulk-progress">Fetching legends for metagame {effectiveId}…</div>
       )}
@@ -592,29 +728,45 @@ export default function StaplesAnalyzerPage() {
               <div className="k">Value of the staples you own</div>
             </div>
             <div className="stat-box">
-              <div className="v">{result.allLegends.length}</div>
-              <div className="k">Meta decks checked</div>
+              <div className="v">
+                {resultMode === 'deck' ? result.allLegends.length : result.source.cardCount}
+              </div>
+              <div className="k">
+                {resultMode === 'deck' ? 'Meta decks checked' : 'Cards on the staples list'}
+              </div>
             </div>
           </div>
 
           <div className="section-head">
-            <h3>Meta decks scanned</h3>
+            <h3>{resultMode === 'deck' ? 'Meta decks scanned' : 'Source'}</h3>
             <span className="muted">
               data fetched {new Date(result.fetchedAt).toLocaleString()} —{' '}
               <Link to="/config">refresh fresh meta data</Link> on the Config page
             </span>
           </div>
-          <div className="hstack" style={{ marginBottom: 14 }}>
-            {result.allLegends.map((l) => (
-              <span
-                key={l.slug}
-                className={`pill ${l.sharePct > 0 ? 'green' : ''}`}
-                title={`${l.decks ?? '?'} decks`}
-              >
-                {l.name} · {l.sharePct}%
-              </span>
-            ))}
-          </div>
+          {resultMode === 'deck' ? (
+            <div className="hstack" style={{ marginBottom: 14 }}>
+              {result.allLegends.map((l) => (
+                <span
+                  key={l.slug}
+                  className={`pill ${l.sharePct > 0 ? 'green' : ''}`}
+                  title={`${l.decks ?? '?'} decks`}
+                >
+                  {l.name} · {l.sharePct}%
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="muted" style={{ marginBottom: 14 }}>
+              The most played cards of every Constructed deck of the last 30 days. Popularity is a
+              share of the most played card, and not a share of the lists.
+              {/* The walk down the paged list stops at this value, thus a lower
+                  limit cannot find more cards and the page says so. */}
+              {result.stapleLimit < result.source.minPopularity
+                ? ` The list stops at ${result.source.minPopularity}%, thus a limit below that shows no more cards.`
+                : ''}
+            </p>
+          )}
 
           {/* One bar for the two lists. It sits above the panels, and not
               inside one, because closing a list must not hide it. */}
@@ -646,8 +798,8 @@ export default function StaplesAnalyzerPage() {
             <select value={rarityFilter} onChange={(e) => setRarityFilter(e.target.value)}>
               <option value="any">Any rarity</option>
               {rarityOptions.map((r) => (
-                <option key={r} value={r}>
-                  {r}
+                <option key={r.value} value={r.value}>
+                  {r.label}
                 </option>
               ))}
             </select>
@@ -656,8 +808,12 @@ export default function StaplesAnalyzerPage() {
               owned: {visibleOwned.length} · missing: {visibleMissing.length}
             </span>
             <select value={sort} onChange={(e) => setSort(e.target.value)}>
-              <option value="playRate">Sort: Play rate</option>
-              <option value="decks">Sort: Decks above limit</option>
+              <option value="playRate">
+                {resultMode === 'deck' ? 'Sort: Play rate' : 'Sort: Popularity'}
+              </option>
+              {/* One pseudo-deck for every row of an Overall run, thus this sort
+                  would keep the list as it is. */}
+              {resultMode === 'deck' && <option value="decks">Sort: Decks above limit</option>}
               <option value="value">Sort: Value</option>
               <option value="copies">Sort: Copies</option>
               <option value="price">Sort: Price (high)</option>
@@ -685,9 +841,10 @@ export default function StaplesAnalyzerPage() {
             empty={`No owned staple matches these filters. ${full.owned.length} are in the run.`}
           >
             <p className="muted">
-              The meta plays each of these in more than {result.stapleLimit}% of the lists of a
-              minimum of one deck, and you have a copy. Click the thumbnail to see every deck that
-              plays it.
+              {resultMode === 'deck'
+                ? `The meta plays each of these in more than ${result.stapleLimit}% of the lists of a minimum of one deck, and you have a copy.`
+                : `The format plays each of these at more than ${result.stapleLimit}% popularity, and you have a copy.`}{' '}
+              Click the thumbnail to see the numbers behind the row.
             </p>
           </ResultPanel>
 
@@ -700,7 +857,8 @@ export default function StaplesAnalyzerPage() {
             empty="No missing staple matches these filters."
           >
             <p className="muted">
-              Above the limit in a minimum of one deck, and you have no copy in any printing.
+              Above the limit{resultMode === 'deck' ? ' in a minimum of one deck' : ''}, and you
+              have no copy in any printing.
             </p>
           </ResultPanel>
 
@@ -727,6 +885,7 @@ export default function StaplesAnalyzerPage() {
           row={decksRow}
           owned={decksRow.owned}
           limit={result.stapleLimit}
+          mode={resultMode}
           onClose={() => setDecksId(null)}
           onDetails={setDetailId}
         />

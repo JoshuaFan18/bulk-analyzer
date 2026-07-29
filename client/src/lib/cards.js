@@ -48,6 +48,15 @@ export function setLabel(card) {
 // silently takes over from an existing printing.
 export const SET_RELEASE_ORDER = ['OGN', 'OGS', 'SFD', 'UNL', 'VEN', 'ARC'];
 
+// metagame_id on riftdecks.com. Shared by the Config page (which refreshes the
+// meta-cache) and the Bulk Analyzer (which only reads it).
+export const METAGAME_PRESETS = [
+  { id: '1', label: 'Origins (1)' },
+  { id: '2', label: 'Spiritforged (2)' },
+  { id: '3', label: 'Unleashed (3)' },
+  { id: '4', label: 'Vendetta (4)' },
+];
+
 // Release position of a set code. An unknown (future) code sorts LAST, which a
 // bare indexOf would get backwards.
 export function setRank(code) {

@@ -1073,15 +1073,17 @@ th.qty-col {
   opacity: 1;
 }
 
-/* A row tagged Keep during this session stays in place, because the run that
-   built the table cannot be replayed, but it no longer counts. */
-.row-kept {
-  opacity: 0.5;
+.bulk-remove-cell {
+  display: flex;
+  gap: 6px;
 }
 
-.row-kept td:not(:last-child) {
-  text-decoration: line-through;
+.bulk-remove-cell button {
+  padding: 4px 8px;
+  font-size: 12px;
+  line-height: 1;
 }
+
 
 /* Follows the pointer, so it is fixed and never in the table flow. Above the
    topbar (50) and below the modal overlay (100), which replaces it on a

@@ -20,6 +20,22 @@ export const ZONES = {
 
 export const MAX_COPIES_MAIN = 3;
 
+// Main-deck grouping by type, shared by the deck builder and the deck viewer.
+// The trailing bucket catches anything an imported deck put in the main zone
+// that is not one of the three normal types, so nothing is silently missing.
+export const MAIN_TYPES = ['Unit', 'Spell', 'Gear'];
+export const MAIN_GROUPS = [
+  { label: 'Units', types: ['Unit'] },
+  { label: 'Spells', types: ['Spell'] },
+  { label: 'Gear', types: ['Gear'] },
+  { label: 'Other', types: null },
+];
+
+// True when the card belongs in the given MAIN_GROUPS bucket.
+export function inMainGroup(card, types) {
+  return types ? types.includes(card?.type) : !MAIN_TYPES.includes(card?.type);
+}
+
 // Signature cards are capped at 3 cumulatively across the deck, counting
 // different signature names together rather than 3 of each.
 export const MAX_SIGNATURE_CARDS = 3;

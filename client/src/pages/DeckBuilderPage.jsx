@@ -28,6 +28,8 @@ import {
   withinLegendDomains,
 } from '../lib/cards.js';
 import {
+  MAIN_GROUPS,
+  inMainGroup,
   MAX_SIGNATURE_CARDS,
   ZONES,
   ZONE_LADDER,
@@ -798,17 +800,6 @@ function DeckCardRow({
   );
 }
 
-// Main-deck grouping by type. The trailing bucket catches anything an imported
-// deck put in the main zone that is not one of the three normal types, so
-// nothing is silently missing from the list.
-const MAIN_TYPES = ['Unit', 'Spell', 'Gear'];
-const MAIN_GROUPS = [
-  { label: 'Units', types: ['Unit'] },
-  { label: 'Spells', types: ['Spell'] },
-  { label: 'Gear', types: ['Gear'] },
-  { label: 'Other', types: null },
-];
-
 // Sort keys per row. A card with no value for the chosen key (a spell has no
 // might, an unpriced printing no price) sorts last in both directions rather
 // than pretending to be zero, the same rule lib/cards.js applies to prices.
@@ -840,9 +831,7 @@ function groupRows(rows, mode, dir) {
   if (mode === 'type') {
     return MAIN_GROUPS.map(({ label, types }) => ({
       label,
-      rows: rows.filter((r) =>
-        types ? types.includes(r.card?.type) : !MAIN_TYPES.includes(r.card?.type)
-      ),
+      rows: rows.filter((r) => inMainGroup(r.card, types)),
     })).filter((g) => g.rows.length > 0);
   }
   if (mode === 'energy' || mode === 'domain') {

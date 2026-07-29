@@ -5,8 +5,11 @@ import { useApp } from '../state.jsx';
 import Modal from '../components/Modal.jsx';
 import DeckStats from '../components/DeckStats.jsx';
 import DeckCollectionList from '../components/DeckCollectionList.jsx';
+import CardDetailModal from '../components/CardDetailModal.jsx';
 import { COLOR_HEX, money, ownedAcrossPrintings } from '../lib/cards.js';
 import {
+  MAIN_GROUPS,
+  inMainGroup,
   ZONES,
   deckColors,
   deckPrice,
@@ -24,6 +27,8 @@ export default function DeckViewerPage() {
   const [error, setError] = useState(null);
   const [tab, setTab] = useState('deck');
   const [showExport, setShowExport] = useState(false);
+  // The id, not the card, so an open popup shows the new price after a refresh.
+  const [detailId, setDetailId] = useState(null);
 
   useEffect(() => {
     api
@@ -108,7 +113,14 @@ export default function DeckViewerPage() {
         </button>
       </div>
 
-      {tab === 'deck' && <DeckSections deck={deck} cardsById={cardsById} ownedIndex={ownedIndex} />}
+      {tab === 'deck' && (
+        <DeckSections
+          deck={deck}
+          cardsById={cardsById}
+          ownedIndex={ownedIndex}
+          onOpen={setDetailId}
+        />
+      )}
       {tab === 'stats' && (
         <div style={{ maxWidth: 420 }}>
           <DeckStats deck={deck} />
@@ -122,6 +134,10 @@ export default function DeckViewerPage() {
           </p>
           <DeckCollectionList deck={deck} allowWishlist />
         </div>
+      )}
+
+      {detailId && (
+        <CardDetailModal card={cardsById.get(detailId)} onClose={() => setDetailId(null)} />
       )}
 
       {showExport && (
@@ -145,7 +161,7 @@ export default function DeckViewerPage() {
   );
 }
 
-function CardCell({ card, cardId, count, owned }) {
+function CardCell({ card, cardId, count, owned, onOpen }) {
   const missing = Math.max(0, count - owned);
   if (!card) {
     return (
@@ -156,28 +172,40 @@ function CardCell({ card, cardId, count, owned }) {
   }
   return (
     <div className="viewer-card" title={card.name}>
-      <img src={card.image} alt={card.name} loading="lazy" decoding="async" />
+      <button type="button" className="vc-art" onClick={() => onOpen(cardId)}>
+        <img src={card.image} alt={card.name} loading="lazy" decoding="async" />
+      </button>
       <span className="vc-count">×{count}</span>
       {missing > 0 && <span className="vc-missing">missing {missing}</span>}
     </div>
   );
 }
 
-function DeckSections({ deck, cardsById, ownedIndex }) {
+function DeckSections({ deck, cardsById, ownedIndex, onOpen }) {
   const sections = useMemo(() => {
+    const byCost = (a, b) =>
+      (a.card?.cost ?? 99) - (b.card?.cost ?? 99) ||
+      (a.card?.name || '').localeCompare(b.card?.name || '');
+    const zoneItems = (zone) =>
+      Object.entries(deck[zone] || {})
+        .map(([cardId, count]) => ({ cardId, count, card: cardsById.get(cardId) }))
+        .sort(byCost);
+    const total = (items) => items.reduce((s, i) => s + i.count, 0);
     const zoneCards = (zone, label) => {
-      const entries = Object.entries(deck[zone] || {});
-      if (entries.length === 0) return null;
-      return {
-        label: `${label} (${entries.reduce((s, [, n]) => s + n, 0)})`,
-        items: entries
-          .map(([cardId, count]) => ({ cardId, count, card: cardsById.get(cardId) }))
-          .sort(
-            (a, b) =>
-              (a.card?.cost ?? 99) - (b.card?.cost ?? 99) ||
-              (a.card?.name || '').localeCompare(b.card?.name || '')
-          ),
-      };
+      const items = zoneItems(zone);
+      if (items.length === 0) return null;
+      return { label: `${label} (${total(items)})`, items };
+    };
+    // The main deck splits into Units / Spells / Gear the same way the deck
+    // builder's "By Type" grouping does, sharing MAIN_GROUPS so the buckets and
+    // the catch-all stay identical on both screens.
+    const mainSections = () => {
+      const items = zoneItems('main');
+      if (items.length === 0) return [];
+      return MAIN_GROUPS.map(({ label, types }) => {
+        const group = items.filter((i) => inMainGroup(i.card, types));
+        return group.length ? { label: `${label} (${total(group)})`, items: group } : null;
+      }).filter(Boolean);
     };
     const top = {
       label: 'Legend & Chosen Champion',
@@ -190,7 +218,7 @@ function DeckSections({ deck, cardsById, ownedIndex }) {
       top.items.length ? top : null,
       zoneCards('battlefields', 'Battlefields'),
       zoneCards('runes', 'Runes'),
-      zoneCards('main', 'Main Deck'),
+      ...mainSections(),
       zoneCards('side', 'Sideboard'),
       zoneCards('bench', 'The Bench'),
     ].filter(Boolean);
@@ -211,6 +239,7 @@ function DeckSections({ deck, cardsById, ownedIndex }) {
                 cardId={cardId}
                 count={count}
                 owned={ownedAcrossPrintings(card, ownedIndex).total}
+                onOpen={onOpen}
               />
             ))}
           </div>

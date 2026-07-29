@@ -96,7 +96,8 @@ function KeepButton({ card, kept, onToggle }) {
 // Every list on the page shows the same columns, so one table serves all four.
 // A locked row needs no styling of its own: the lock moves it into the locked
 // list, which says the same thing.
-function ResultTable({ rows, onOpen, onHover, onToggleKeep }) {
+function ResultTable({ rows, onOpen, onHover, onToggleKeep, onRemoveOne, onRemoveAll }) {
+  const showRemove = Boolean(onRemoveOne);
   return (
     <table className="data">
       <thead>
@@ -109,6 +110,7 @@ function ResultTable({ rows, onOpen, onHover, onToggleKeep }) {
           <th className="num">Value</th>
           <th className="num">Max meta play rate</th>
           <th>{KEEP_TAG}</th>
+          {showRemove ? <th>Remove</th> : null}
         </tr>
       </thead>
       <tbody>
@@ -129,6 +131,28 @@ function ResultTable({ rows, onOpen, onHover, onToggleKeep }) {
             <td>
               <KeepButton card={e.card} kept={e.keep} onToggle={onToggleKeep} />
             </td>
+            {showRemove ? (
+              <td>
+                <div className="bulk-remove-cell">
+                  <button
+                    type="button"
+                    className="danger"
+                    title="Remove one normal copy from your collection"
+                    onClick={() => onRemoveOne(e.card)}
+                  >
+                    −1
+                  </button>
+                  <button
+                    type="button"
+                    className="danger"
+                    title="Remove every normal copy of this card from your collection"
+                    onClick={() => onRemoveAll(e.card)}
+                  >
+                    All
+                  </button>
+                </div>
+              </td>
+            ) : null}
           </tr>
         ))}
       </tbody>
@@ -158,7 +182,7 @@ function ResultPanel({ title, rows, total, open, children, empty, noRows, tableP
 }
 
 export default function BulkAnalyzerPage() {
-  const { cards, cardsById, collection, tags, toggleCardTag } = useApp();
+  const { cards, cardsById, collection, tags, toggleCardTag, setQty, mergeCollection } = useApp();
   const [metagameId, setMetagameId] = useState('1');
   const [customId, setCustomId] = useState('');
   const [priceLimit, setPriceLimit] = useState(String(DEFAULT_PRICE_LIMIT));
@@ -319,13 +343,24 @@ export default function BulkAnalyzerPage() {
     }
   };
 
-  // Every row the run produced, each carrying the lock as it stands now. The
-  // toolbar drives all four lists, so its options have to cover all four or a
-  // chip a lower list needs would be missing.
+  // Every row the run produced, each carrying the lock and the owned count as
+  // they stand now. The toolbar drives all four lists, so its options have to
+  // cover all four or a chip a lower list needs would be missing. Copies and
+  // value read the live collection, not the run snapshot, so the remove buttons
+  // take effect on screen at the click: a card emptied to 0 normal copies falls
+  // under the min-copies floor and drops out of its list.
   const allRows = useMemo(() => {
     if (!result) return [];
-    return result.rows.map((e) => ({ ...e, keep: hasTag(tags, e.card.id, KEEP_TAG) }));
-  }, [result, tags]);
+    return result.rows.map((e) => {
+      const copies = collection[e.card.id]?.normal || 0;
+      return {
+        ...e,
+        copies,
+        value: copies * e.price,
+        keep: hasTag(tags, e.card.id, KEEP_TAG),
+      };
+    });
+  }, [result, tags, collection]);
 
   // Only the sets the run actually produced, so a box never empties every
   // table at once.
@@ -438,8 +473,46 @@ export default function BulkAnalyzerPage() {
 
   const running = phase === 'legends' || phase === 'maps';
 
-  // Every list wires its table to the same three handlers.
+  // The bulk rows carry only normal copies, so the remove buttons touch the
+  // normal count and leave any foils alone. They read the live collection, not
+  // the run snapshot, because a click may have already trimmed the card.
+  const removeOne = (card) => {
+    const cur = collection[card.id]?.normal || 0;
+    if (cur <= 0) return;
+    setQty(card.id, 'normal', cur - 1);
+  };
+
+  const removeAll = (card) => {
+    if ((collection[card.id]?.normal || 0) <= 0) return;
+    setQty(card.id, 'normal', 0);
+  };
+
+  // Wipes every bulk card the toolbar currently shows. One merge of signed
+  // deltas, clamped at 0, so a stale snapshot count can never drive it below
+  // what is owned. Guarded, because it clears the whole filtered list at once.
+  const removeAllVisible = () => {
+    if (visible.length === 0) return;
+    const copies = visible.reduce((s, e) => s + (collection[e.card.id]?.normal || 0), 0);
+    if (copies <= 0) return;
+    if (
+      !window.confirm(
+        `Remove ${copies} normal copy(ies) of ${visible.length} bulk card(s) from your collection? This cannot be undone.`
+      )
+    ) {
+      return;
+    }
+    const deltas = {};
+    for (const e of visible) {
+      const owned = collection[e.card.id]?.normal || 0;
+      if (owned > 0) deltas[e.card.id] = { normal: -owned };
+    }
+    mergeCollection(deltas);
+  };
+
+  // Every list wires its table to the same three handlers. Only the bulk list
+  // adds the remove buttons, so it gets its own props.
   const tableProps = { onOpen: setDetailId, onHover: showHover, onToggleKeep: toggleCardTag };
+  const bulkTableProps = { ...tableProps, onRemoveOne: removeOne, onRemoveAll: removeAll };
 
   return (
     <div>
@@ -633,6 +706,17 @@ export default function BulkAnalyzerPage() {
             <button onClick={exportCsv} disabled={visible.length === 0}>
               Export CSV
             </button>
+            {/* Clears every bulk card the filters currently show. It reads the
+                same `visible` list the True bulk table renders, so what it
+                removes is exactly what is on screen. */}
+            <button
+              className="danger"
+              onClick={removeAllVisible}
+              disabled={visible.length === 0}
+              title="Remove all normal copies of every bulk card shown below from your collection"
+            >
+              Remove all shown bulk
+            </button>
           </div>
 
           {/* The bulk list is open by default, because this is the answer the
@@ -642,7 +726,7 @@ export default function BulkAnalyzerPage() {
             open
             rows={visible}
             total={full.bulk.length}
-            tableProps={tableProps}
+            tableProps={bulkTableProps}
             noRows="No true bulk found — none of your owned commons/uncommons matched the rule."
             empty={`No bulk card matches these filters. ${full.bulk.length} cards are in the run.`}
           />

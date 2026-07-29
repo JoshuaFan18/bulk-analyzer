@@ -1027,6 +1027,77 @@ th.qty-col {
   margin-top: 8px;
 }
 
+/* Card column of the bulk tables: thumbnail plus name. The thumbnail reuses
+   .dc-thumb from the deck panel, so only the row layout is new here. */
+.bulk-card-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Set filter: one checkbox per set, so several sets can show at once. Grouped
+   in a box because the boxes read as one control rather than as four. */
+.set-checks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 8px;
+}
+
+.set-checks label.inline {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-dim);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* The tile lock is absolutely positioned over the art, so the table needs its
+   own rule with the same colours. */
+.keep-cell-btn {
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1;
+  filter: grayscale(1);
+  opacity: 0.6;
+}
+
+.keep-cell-btn.on {
+  border-color: var(--green);
+  filter: none;
+  opacity: 1;
+}
+
+/* A row tagged Keep during this session stays in place, because the run that
+   built the table cannot be replayed, but it no longer counts. */
+.row-kept {
+  opacity: 0.5;
+}
+
+.row-kept td:not(:last-child) {
+  text-decoration: line-through;
+}
+
+/* Follows the pointer, so it is fixed and never in the table flow. Above the
+   topbar (50) and below the modal overlay (100), which replaces it on a
+   click. */
+.card-hover-preview {
+  position: fixed;
+  z-index: 60;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
 .summary-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -1064,6 +1135,12 @@ details.panel {
 details.panel summary {
   cursor: pointer;
   font-weight: 600;
+}
+
+/* Closed, the summary is the whole box. Open, it needs to read as a heading
+   over the content. */
+details.panel[open] > summary {
+  margin-bottom: 10px;
 }
 
 /* ---- Deck builder ---- */

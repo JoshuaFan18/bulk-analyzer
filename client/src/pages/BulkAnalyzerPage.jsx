@@ -1,9 +1,24 @@
 import React, { useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { useApp } from '../state.jsx';
-import { isToken, money, normName } from '../lib/cards.js';
+import {
+  COLORS,
+  COLOR_HEX,
+  SET_RELEASE_ORDER,
+  cardMatchesText,
+  isToken,
+  money,
+  normName,
+  setLabel,
+} from '../lib/cards.js';
+import { DOMAIN_ICON } from '../lib/icons.js';
 import { csvCell, downloadText } from '../lib/download.js';
 import { KEEP_TAG, hasTag } from '../lib/tags.js';
+import CardDetailModal from '../components/CardDetailModal.jsx';
+import DomainIcon from '../components/DomainIcon.jsx';
+
+const PREVIEW_W = 260;
+const PREVIEW_H = 364;
 
 const DEFAULT_PRICE_LIMIT = 0.25;
 const DEFAULT_PLAY_RATE_LIMIT = 10;
@@ -17,8 +32,78 @@ const PRESETS = [
 
 const stripVariant = (id) => String(id).replace(/([0-9])[a-z]$/i, '$1');
 
+// An unknown (future) set code sorts last rather than first, which a bare
+// indexOf would do.
+const setRank = (code) => {
+  const i = SET_RELEASE_ORDER.indexOf(code);
+  return i < 0 ? SET_RELEASE_ORDER.length : i;
+};
+
+// Sorters for the bulk table. A card the meta never plays has playRate 0, which
+// is a real answer here (unlike a missing price), so it sorts as zero.
+const SORTS = {
+  value: (a, b) => b.value - a.value || b.copies - a.copies,
+  copies: (a, b) => b.copies - a.copies || b.value - a.value,
+  price: (a, b) => b.price - a.price || a.card.name.localeCompare(b.card.name),
+  priceAsc: (a, b) => a.price - b.price || a.card.name.localeCompare(b.card.name),
+  playRate: (a, b) => b.playRate - a.playRate || b.value - a.value,
+  name: (a, b) => a.card.name.localeCompare(b.card.name),
+  set: (a, b) =>
+    setRank(a.card.setCode) - setRank(b.card.setCode) || a.card.id.localeCompare(b.card.id),
+};
+
+// The thumbnail opens the read-only detail popup on a click and a floating
+// full-card preview on a hover, so a row can be judged without leaving the
+// table.
+function CardCell({ card, onOpen, onHover }) {
+  return (
+    <div className="bulk-card-cell">
+      <button
+        type="button"
+        className="dc-thumb"
+        title={`${card.name} — view card details`}
+        onClick={() => {
+          // The pointer stays on the thumbnail after the click, so the preview
+          // has to be dismissed here or it floats over the popup.
+          onHover(null);
+          onOpen(card.id);
+        }}
+        onMouseEnter={(e) => onHover(card, e.clientX, e.clientY)}
+        onMouseMove={(e) => onHover(card, e.clientX, e.clientY)}
+        onMouseLeave={() => onHover(null)}
+        onFocus={() => onHover(null)}
+      >
+        {card.image ? (
+          <img src={card.image} alt="" loading="lazy" decoding="async" />
+        ) : (
+          <span className="muted">?</span>
+        )}
+      </button>
+      <span>
+        {card.name} <span className="muted">{card.id}</span>
+      </span>
+    </div>
+  );
+}
+
+// The same lock the collection tile uses, so the tag means the same thing on
+// both screens. It writes the tag for this printing id only.
+function KeepButton({ card, kept, onToggle }) {
+  return (
+    <button
+      type="button"
+      className={`keep-cell-btn ${kept ? 'on' : ''}`}
+      aria-pressed={kept}
+      title={kept ? `Remove the ${KEEP_TAG} tag` : `Tag as ${KEEP_TAG} (never bulk)`}
+      onClick={() => onToggle(card.id, KEEP_TAG)}
+    >
+      🔒
+    </button>
+  );
+}
+
 export default function BulkAnalyzerPage() {
-  const { cards, collection, tags } = useApp();
+  const { cards, cardsById, collection, tags, toggleCardTag } = useApp();
   const [metagameId, setMetagameId] = useState('1');
   const [customId, setCustomId] = useState('');
   const [priceLimit, setPriceLimit] = useState(String(DEFAULT_PRICE_LIMIT));
@@ -28,6 +113,37 @@ export default function BulkAnalyzerPage() {
   const [progress, setProgress] = useState({ current: 0, total: 0, name: '' });
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+
+  // View state for the result table. These never re-run the analysis.
+  const [query, setQuery] = useState('');
+  // An empty list means every set, so the table is never empty by default and
+  // clearing the last box does not hide everything.
+  const [setFilter, setSetFilter] = useState([]);
+  // Same rule as the sets, and a multi-domain card matches any chip that is on.
+  const [domainFilter, setDomainFilter] = useState([]);
+  const [rarityFilter, setRarityFilter] = useState('any');
+  const [playFilter, setPlayFilter] = useState('any');
+  const [minCopies, setMinCopies] = useState('1');
+  const [sort, setSort] = useState('value');
+
+  // The id, not the card, so an open popup shows the new price after a refresh.
+  const [detailId, setDetailId] = useState(null);
+  const [hover, setHover] = useState(null);
+
+  // The preview is fixed to the pointer, so it is clamped to the viewport or a
+  // row near an edge would push it off screen.
+  const showHover = (card, x, y) => {
+    if (!card || !card.image) {
+      setHover(null);
+      return;
+    }
+    setHover({
+      image: card.image,
+      name: card.name,
+      x: Math.min(x + 18, window.innerWidth - PREVIEW_W - 8),
+      y: Math.min(Math.max(y - PREVIEW_H / 2, 8), window.innerHeight - PREVIEW_H - 8),
+    });
+  };
 
   const effectiveId = customId.trim() || metagameId;
 
@@ -80,6 +196,7 @@ export default function BulkAnalyzerPage() {
 
       const bulk = [];
       const protectedCards = [];
+      const keptCards = [];
       let unknownPrice = 0;
       let keptCount = 0;
 
@@ -96,14 +213,15 @@ export default function BulkAnalyzerPage() {
         if (normalOwned <= 0) continue;
         if (card.rarity !== 'Common' && card.rarity !== 'Uncommon') continue;
         if (card.type === 'Rune' || isToken(card)) continue;
-        if (hasTag(tags, card.id, KEEP_TAG)) {
-          keptCount += 1;
-          continue;
-        }
+        // A locked card still goes through the price and play-rate tests, so the
+        // third list can show what the lock is actually holding back. It never
+        // reaches bulk or the totals.
+        const locked = hasTag(tags, card.id, KEEP_TAG);
+        if (locked) keptCount += 1;
 
         const price = card.price;
         if (price == null || price <= 0) {
-          unknownPrice += 1;
+          if (!locked) unknownPrice += 1;
           continue;
         }
         if (price >= maxPrice) continue;
@@ -117,12 +235,14 @@ export default function BulkAnalyzerPage() {
           playRate: use?.playRate ?? 0,
           legend: use?.legend ?? null,
         };
-        if (use && use.playRate > maxPlayRate) protectedCards.push(entry);
+        if (locked) keptCards.push(entry);
+        else if (use && use.playRate > maxPlayRate) protectedCards.push(entry);
         else bulk.push(entry);
       }
 
       bulk.sort((a, b) => b.value - a.value);
       protectedCards.sort((a, b) => b.playRate - a.playRate);
+      keptCards.sort((a, b) => b.value - a.value);
 
       setResult({
         metagameId: effectiveId,
@@ -131,6 +251,7 @@ export default function BulkAnalyzerPage() {
         metaLegends,
         bulk,
         protectedCards,
+        keptCards,
         unknownPrice,
         keptCount,
         // Captured so the prose describes the run that produced this table,
@@ -145,6 +266,70 @@ export default function BulkAnalyzerPage() {
     }
   };
 
+  // Only the sets the run actually produced, so the select never offers a
+  // choice that empties the table.
+  const setOptions = useMemo(() => {
+    if (!result) return [];
+    const counts = new Map();
+    for (const e of result.bulk) {
+      counts.set(e.card.setCode, (counts.get(e.card.setCode) || 0) + 1);
+    }
+    return [...counts.entries()]
+      .map(([code, count]) => ({ code, count }))
+      .sort((a, b) => setRank(a.code) - setRank(b.code) || a.code.localeCompare(b.code));
+  }, [result]);
+
+  const toggleSet = (code) => {
+    setSetFilter((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
+    );
+  };
+
+  // Only the domains the run produced, for the same reason the sets are limited
+  // to it. A card with no colors counts as Colorless.
+  const domainOptions = useMemo(() => {
+    if (!result) return [];
+    const counts = new Map();
+    for (const e of result.bulk) {
+      const list = e.card.colors?.length ? e.card.colors : ['Colorless'];
+      for (const c of list) counts.set(c, (counts.get(c) || 0) + 1);
+    }
+    return COLORS.filter((c) => counts.has(c)).map((c) => ({ domain: c, count: counts.get(c) }));
+  }, [result]);
+
+  const toggleDomain = (domain) => {
+    setDomainFilter((prev) =>
+      prev.includes(domain) ? prev.filter((d) => d !== domain) : [...prev, domain]
+    );
+  };
+
+  const visible = useMemo(() => {
+    if (!result) return [];
+    const floor = Number(minCopies) > 0 ? Number(minCopies) : 1;
+    const list = result.bulk.filter((e) => {
+      if (!cardMatchesText(e.card, query.trim())) return false;
+      if (setFilter.length > 0 && !setFilter.includes(e.card.setCode)) return false;
+      if (domainFilter.length > 0) {
+        const list = e.card.colors?.length ? e.card.colors : ['Colorless'];
+        if (!domainFilter.some((d) => list.includes(d))) return false;
+      }
+      if (rarityFilter !== 'any' && e.card.rarity !== rarityFilter) return false;
+      if (playFilter === 'played' && e.playRate <= 0) return false;
+      if (playFilter === 'unplayed' && e.playRate > 0) return false;
+      if (e.copies < floor) return false;
+      return true;
+    });
+    // Tagging Keep after a run cannot rebuild result.bulk, so the row stays in
+    // place and carries the flag. The totals and the export drop it.
+    return [...list]
+      .sort(SORTS[sort])
+      .map((e) => ({ ...e, keep: hasTag(tags, e.card.id, KEEP_TAG) }));
+  }, [result, query, setFilter, domainFilter, rarityFilter, playFilter, minCopies, sort, tags]);
+
+  const kepts = useMemo(() => visible.filter((e) => e.keep).length, [visible]);
+
+  // The stat boxes describe the whole run. The filters narrow only the table
+  // below them, which reports its own totals.
   const summary = useMemo(() => {
     if (!result) return null;
     return {
@@ -154,9 +339,17 @@ export default function BulkAnalyzerPage() {
     };
   }, [result]);
 
+  const shownTotals = useMemo(() => {
+    const counted = visible.filter((e) => !e.keep);
+    return {
+      copies: counted.reduce((s, e) => s + e.copies, 0),
+      value: counted.reduce((s, e) => s + e.value, 0),
+    };
+  }, [visible]);
+
   const exportCsv = () => {
     const lines = ['CardId,Name,Set,Rarity,NormalCopies,Price,TotalValue,MaxMetaPlayRate'];
-    for (const e of result.bulk) {
+    for (const e of visible.filter((r) => !r.keep)) {
       lines.push(
         `${e.card.id},${csvCell(e.card.name)},${e.card.setCode},${e.card.rarity},${
           e.copies
@@ -168,22 +361,9 @@ export default function BulkAnalyzerPage() {
 
   const running = phase === 'legends' || phase === 'maps';
 
-  // Before a run the prose describes what the inputs will do; after one it
-  // describes the table on screen.
-  const shownPrice = result ? result.priceLimit : Number(priceLimit) || DEFAULT_PRICE_LIMIT;
-  const shownPlayRate = result
-    ? result.playRateLimit
-    : Number(playRateLimit) || DEFAULT_PLAY_RATE_LIMIT;
-
   return (
     <div>
       <h1 className="page-title">True Bulk Analyzer</h1>
-      <p className="page-sub">
-        True bulk = commons and uncommons worth under {money(shownPrice)} (normal printing)
-        that are not played above {shownPlayRate}% in any meta deck on riftdecks.com. Runes,
-        tokens, and cards you tagged {KEEP_TAG} are excluded. Only normal copies you own are
-        counted — foils are never bulk.
-      </p>
 
       <div className="bulk-controls">
         <label className="field">
@@ -300,15 +480,108 @@ export default function BulkAnalyzerPage() {
             ))}
           </div>
 
-          <div className="section-head">
-            <h3>True bulk ({result.bulk.length})</h3>
-            <button onClick={exportCsv} disabled={result.bulk.length === 0}>
+          {/* Open by default, because this is the answer the page exists to
+              give. It closes like the two lists under it. */}
+          <details className="panel" open>
+            <summary>
+              True bulk ({visible.length}
+              {visible.length !== result.bulk.length ? ` of ${result.bulk.length}` : ''})
+            </summary>
+
+          <div className="toolbar">
+            <input
+              type="search"
+              placeholder="Search name, ID, or text…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              style={{ width: 220 }}
+            />
+            {/* The counts are for the whole run, not for the other filters, so
+                a box never changes its number as the rest of the bar moves. */}
+            <span className="set-checks">
+              {setOptions.map(({ code, count }) => (
+                <label key={code} className="inline" title={setLabel({ setCode: code })}>
+                  <input
+                    type="checkbox"
+                    checked={setFilter.includes(code)}
+                    onChange={() => toggleSet(code)}
+                  />
+                  <span>
+                    {code} <span className="muted">({count})</span>
+                  </span>
+                </label>
+              ))}
+            </span>
+            {domainOptions.length > 0 && (
+              <div className="color-chips">
+                {domainOptions.map(({ domain, count }) => (
+                  <button
+                    key={domain}
+                    className={`color-chip ${domainFilter.includes(domain) ? 'on' : ''}`}
+                    // Colorless has no art of its own and must not borrow the
+                    // rainbow rune, which reads as "any domain".
+                    style={DOMAIN_ICON[domain] ? undefined : { background: COLOR_HEX[domain] }}
+                    title={`${domain} (${count})`}
+                    onClick={() => toggleDomain(domain)}
+                  >
+                    {DOMAIN_ICON[domain] ? (
+                      <DomainIcon domain={domain} variant="plain" />
+                    ) : (
+                      domain[0]
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+            <select value={rarityFilter} onChange={(e) => setRarityFilter(e.target.value)}>
+              <option value="any">Common + Uncommon</option>
+              <option value="Common">Common</option>
+              <option value="Uncommon">Uncommon</option>
+            </select>
+            <select value={playFilter} onChange={(e) => setPlayFilter(e.target.value)}>
+              <option value="any">Any play rate</option>
+              <option value="unplayed">Unplayed in meta</option>
+              <option value="played">Played at all</option>
+            </select>
+            <label className="inline">
+              Min copies
+              <input
+                type="number"
+                min="1"
+                step="1"
+                style={{ width: 64 }}
+                value={minCopies}
+                onChange={(e) => setMinCopies(e.target.value)}
+              />
+            </label>
+            <span className="spacer" />
+            <span className="count-note">
+              {shownTotals.copies} copies · {money(shownTotals.value)}
+              {kepts > 0 ? ` · ${kepts} kept out` : ''}
+            </span>
+            <select value={sort} onChange={(e) => setSort(e.target.value)}>
+              <option value="value">Sort: Value</option>
+              <option value="copies">Sort: Copies</option>
+              <option value="price">Sort: Price (high)</option>
+              <option value="priceAsc">Sort: Price (low)</option>
+              <option value="playRate">Sort: Play rate</option>
+              <option value="name">Sort: Name</option>
+              <option value="set">Sort: Set</option>
+            </select>
+            {/* Below the summary, not in it, or the click would also close the
+                list it exports. */}
+            <button onClick={exportCsv} disabled={visible.length === 0}>
               Export CSV
             </button>
           </div>
+
           {result.bulk.length === 0 ? (
             <p className="muted">
               No true bulk found — none of your owned commons/uncommons matched the rule.
+            </p>
+          ) : visible.length === 0 ? (
+            <p className="muted">
+              No bulk card matches these filters. {result.bulk.length} cards are in the run.
             </p>
           ) : (
             <table className="data">
@@ -321,13 +594,14 @@ export default function BulkAnalyzerPage() {
                   <th className="num">Price</th>
                   <th className="num">Value</th>
                   <th className="num">Max meta play rate</th>
+                  <th>{KEEP_TAG}</th>
                 </tr>
               </thead>
               <tbody>
-                {result.bulk.map((e) => (
-                  <tr key={e.card.id}>
+                {visible.map((e) => (
+                  <tr key={e.card.id} className={e.keep ? 'row-kept' : ''}>
                     <td>
-                      {e.card.name} <span className="muted">{e.card.id}</span>
+                      <CardCell card={e.card} onOpen={setDetailId} onHover={showHover} />
                     </td>
                     <td>{e.card.setCode}</td>
                     <td>{e.card.rarity}</td>
@@ -338,11 +612,15 @@ export default function BulkAnalyzerPage() {
                       {e.playRate > 0 ? `${e.playRate}%` : '—'}
                       {e.legend ? <span className="muted"> ({e.legend})</span> : null}
                     </td>
+                    <td>
+                      <KeepButton card={e.card} kept={e.keep} onToggle={toggleCardTag} />
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
+          </details>
 
           <details className="panel">
             <summary>
@@ -361,22 +639,80 @@ export default function BulkAnalyzerPage() {
                   <th className="num">Price</th>
                   <th className="num">Play rate</th>
                   <th>In deck</th>
+                  <th>{KEEP_TAG}</th>
                 </tr>
               </thead>
               <tbody>
                 {result.protectedCards.map((e) => (
                   <tr key={e.card.id}>
                     <td>
-                      {e.card.name} <span className="muted">{e.card.id}</span>
+                      <CardCell card={e.card} onOpen={setDetailId} onHover={showHover} />
                     </td>
                     <td className="num">{e.copies}</td>
                     <td className="num">{money(e.price)}</td>
                     <td className="num">{e.playRate}%</td>
                     <td>{e.legend}</td>
+                    <td>
+                      <KeepButton
+                        card={e.card}
+                        kept={hasTag(tags, e.card.id, KEEP_TAG)}
+                        onToggle={toggleCardTag}
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </details>
+
+          <details className="panel">
+            <summary>Locked by {KEEP_TAG} ({result.keptCards.length})</summary>
+            <p className="muted">
+              These pass every bulk test, and only the {KEEP_TAG} tag keeps them out of the list
+              above. Unlock one here and it joins the bulk list at the next run.
+            </p>
+            {result.keptCards.length === 0 ? (
+              <p className="muted">No locked card would be bulk under these limits.</p>
+            ) : (
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Card</th>
+                    <th>Set</th>
+                    <th className="num">Normal copies</th>
+                    <th className="num">Price</th>
+                    <th className="num">Value</th>
+                    <th className="num">Max meta play rate</th>
+                    <th>{KEEP_TAG}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.keptCards.map((e) => {
+                    // The run cannot be rebuilt, so an unlocked row stays here and
+                    // drops the struck-through styling instead of moving.
+                    const kept = hasTag(tags, e.card.id, KEEP_TAG);
+                    return (
+                      <tr key={e.card.id} className={kept ? 'row-kept' : ''}>
+                        <td>
+                          <CardCell card={e.card} onOpen={setDetailId} onHover={showHover} />
+                        </td>
+                        <td>{e.card.setCode}</td>
+                        <td className="num">{e.copies}</td>
+                        <td className="num">{money(e.price)}</td>
+                        <td className="num">{money(e.value)}</td>
+                        <td className="num">
+                          {e.playRate > 0 ? `${e.playRate}%` : '—'}
+                          {e.legend ? <span className="muted"> ({e.legend})</span> : null}
+                        </td>
+                        <td>
+                          <KeepButton card={e.card} kept={kept} onToggle={toggleCardTag} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </details>
 
           {result.unknownPrice > 0 && (
@@ -387,11 +723,24 @@ export default function BulkAnalyzerPage() {
           )}
           {result.keptCount > 0 && (
             <p className="muted" style={{ marginTop: 4 }}>
-              {result.keptCount} owned common/uncommon card(s) were skipped because you tagged them{' '}
-              {KEEP_TAG}.
+              {result.keptCount} owned common/uncommon card(s) carry the {KEEP_TAG} tag, and{' '}
+              {result.keptCards.length} of them would be bulk under these limits.
             </p>
           )}
         </>
+      )}
+
+      {hover && (
+        <img
+          className="card-hover-preview"
+          src={hover.image}
+          alt={hover.name}
+          style={{ left: hover.x, top: hover.y, width: PREVIEW_W }}
+        />
+      )}
+
+      {detailId && (
+        <CardDetailModal card={cardsById.get(detailId)} onClose={() => setDetailId(null)} />
       )}
     </div>
   );

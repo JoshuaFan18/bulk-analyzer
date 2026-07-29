@@ -16,6 +16,7 @@ cannot catch (there are no tests).
 | Libraries | `client/src/lib/*` | [docs/libraries.md](docs/libraries.md) |
 | Deck builder | `client/src/pages/DeckBuilderPage.jsx`, `client/src/components/DeckFilterModal.jsx`, legality in `client/src/lib/deck.js` | [docs/deck-builder.md](docs/deck-builder.md) |
 | True Bulk analyzer | `client/src/pages/BulkAnalyzerPage.jsx` | [docs/bulk-analyzer.md](docs/bulk-analyzer.md) |
+| Staples analyzer | `client/src/pages/StaplesAnalyzerPage.jsx` | [docs/staples-analyzer.md](docs/staples-analyzer.md) |
 | Surplus | `client/src/pages/SurplusPage.jsx` | [docs/surplus.md](docs/surplus.md) |
 | Power costs | `server/power.js`, `client/src/data/powerCosts.json`, the Import Power flow | [docs/power-costs.md](docs/power-costs.md) |
 | Components and page shell | `client/src/components/*`, `client/src/pages/*` UI, `client/src/styles.css`, the domain-art assets | [docs/components.md](docs/components.md) |

@@ -4,6 +4,7 @@ import { useApp } from './state.jsx';
 import CollectionPage from './pages/CollectionPage.jsx';
 import SurplusPage from './pages/SurplusPage.jsx';
 import BulkAnalyzerPage from './pages/BulkAnalyzerPage.jsx';
+import StaplesAnalyzerPage from './pages/StaplesAnalyzerPage.jsx';
 import DeckBuilderPage from './pages/DeckBuilderPage.jsx';
 import DecksPage from './pages/DecksPage.jsx';
 import DeckViewerPage from './pages/DeckViewerPage.jsx';
@@ -24,6 +25,7 @@ export default function App() {
             <NavLink to="/collection">Collection</NavLink>
             <NavLink to="/surplus">Surplus</NavLink>
             <NavLink to="/bulk-analyzer">True Bulk Analyzer</NavLink>
+            <NavLink to="/staples">Staples Analyzer</NavLink>
             <NavLink to="/deckbuilder">Deck Builder</NavLink>
             <NavLink to="/decks">My Decks</NavLink>
             <NavLink to="/config">Config</NavLink>
@@ -47,6 +49,7 @@ export default function App() {
             <Route path="/collection" element={<CollectionPage />} />
             <Route path="/surplus" element={<SurplusPage />} />
             <Route path="/bulk-analyzer" element={<BulkAnalyzerPage />} />
+            <Route path="/staples" element={<StaplesAnalyzerPage />} />
             <Route path="/deckbuilder" element={<DeckBuilderPage />} />
             <Route path="/deckbuilder/:id" element={<DeckBuilderPage />} />
             <Route path="/decks" element={<DecksPage />} />

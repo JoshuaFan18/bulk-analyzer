@@ -16,9 +16,10 @@ function Stepper({ value, onChange, disabled }) {
   );
 }
 
-// Adding a custom tag. The datalist offers names already in use so the same tag
-// does not end up spelled three ways.
-function AddTag({ suggestions, onAdd }) {
+// Adding a custom tag. The input points at the page-level #custom-tag-names
+// datalist, which offers the names already in use so the same tag does not end
+// up spelled three ways.
+function AddTag({ onAdd }) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState('');
 
@@ -64,7 +65,6 @@ export default function CardTile({
   onToggleWishlist,
   onSetWishlistQty,
   tags = [],
-  tagSuggestions = [],
   onAddTag,
   onRemoveTag,
   onExpand,
@@ -132,7 +132,7 @@ export default function CardTile({
               ) : null}
             </span>
           ))}
-          <AddTag suggestions={tagSuggestions} onAdd={(name) => onAddTag(card.id, name)} />
+          <AddTag onAdd={(name) => onAddTag(card.id, name)} />
         </div>
         {card.hasNormal ? (
           <div className="qty-row">

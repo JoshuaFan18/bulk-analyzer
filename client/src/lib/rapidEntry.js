@@ -1,4 +1,4 @@
-import { ownedCopies } from './cards.js';
+import { ownedCopies, routeFinish } from './cards.js';
 
 // Rapid entry: one person reads collector numbers aloud, the other types them
 // against a fixed set. Everything the dialog needs to turn a typed token into a
@@ -118,19 +118,12 @@ export function resolveRapidEntry(setCode, raw, { cardsById, promoIndex, ownedOf
     if (!card) return { error: `No card ${baseId}` };
   }
 
-  // 811 of the 1383 printings are foil-only and 54 are normal-only. CardTile
-  // hides the stepper for a finish a card does not have, so recording the typed
-  // finish blindly would create copies the collection grid can never show or
-  // edit. Route to the finish that exists and flag it in the history row.
-  let kind = parsed.foil ? 'foil' : 'normal';
-  let autoFinish = false;
-  if (kind === 'normal' && !card.hasNormal && card.hasFoil) {
-    kind = 'foil';
-    autoFinish = true;
-  } else if (kind === 'foil' && !card.hasFoil && card.hasNormal) {
-    kind = 'normal';
-    autoFinish = true;
-  }
+  // Route to the finish the printing actually has (see routeFinish) and flag the
+  // swap so the history row shows it rather than silently recording something
+  // else than what was typed.
+  const typed = parsed.foil ? 'foil' : 'normal';
+  const kind = routeFinish(card, typed);
+  const autoFinish = kind !== typed;
 
   const delta = parsed.sign * parsed.times;
   if (delta < 0 && ownedOf(card.id, kind) + delta < 0) {
@@ -155,9 +148,9 @@ export function sessionTotals(entries) {
   return totals;
 }
 
-// Value of the copies added this session. Mirrors collectionValue's formula
-// (normal at price, foil at foilPrice) rather than effectivePrice, so the
-// number reconciles with the collection stats panel's estimate.
+// Value of the copies added this session. Prices each finish at its own rate
+// (normal at price, foil at foilPrice) rather than through effectivePrice, which
+// is what the collection stats panel does, so the two numbers reconcile.
 export function sessionValue(totals, cardsById) {
   let value = 0;
   for (const [id, acc] of totals) {

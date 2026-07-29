@@ -48,8 +48,9 @@ external sources. Thus the browser has no CORS problem.
   changes.
 - [server/index.js](server/index.js) has routes only, and no business logic. The `handle()` wrapper
   changes an error into a 500 `{error}`, and the client shows that text. `collection.json`,
-  `wishlist.json` and `tags.json` use the same `GET` and `PUT {cards}` pair. To add a fourth store,
-  copy that pair.
+  `wishlist.json` and `tags.json` are the same `{cards, updatedAt}` shape behind the same `GET` and
+  `PUT {cards}` pair, thus one `cardStore(route, file)` call registers each. To add a fourth store,
+  add one more `cardStore()` line.
 
 ### Client
 
@@ -78,11 +79,15 @@ Data shapes:
 Libraries:
 
 - [client/src/lib/cards.js](client/src/lib/cards.js) has the domain constants, the pure helpers
-  (`SET_CODE_BY_NAME`, `normName`, `playsetTarget`, `collectionValue`) and the predicates in the
-  sections that follow. The filter buckets and their matchers (`MIGHT_BUCKETS`/`matchesMight`,
-  `POWER_BUCKETS`/`matchesPower`, `matchesType`, `matchesSupertype`) are here because two pages use
-  them. Keep each list with its matcher. The two stat matchers must reject a **null** stat, and must
-  not read null as 0. Put all other reusable non-visual code here or in `lib/deck.js`.
+  (`SET_CODE_BY_NAME`, `normName`, `playsetTarget`, `setRank`, `setNameOptions`, `routeFinish`) and
+  the predicates in the sections that follow. Each filter bucket list has a `*Bucket` helper and a
+  matcher (`ENERGY_BUCKETS`/`energyBucket`/`matchesCost`, `MIGHT_BUCKETS`/`mightBucket`/
+  `matchesMight`, `POWER_BUCKETS`/`powerBucket`/`matchesPower`), because the collection page, the
+  deck filter modal, the builder's per-option counts and the deck stats curve all read them. **Keep
+  each list with its bucket helper and its matcher**, or a count appears next to an option that
+  filters to something else. A `*Bucket` helper gives **null** for a null stat, thus the matchers
+  reject it and do not read null as 0. Put all other reusable non-visual code here or in
+  `lib/deck.js`.
 - [client/src/lib/deck.js](client/src/lib/deck.js) has the deck model, the rules and the plain-text
   deck format (a bare `Section:` header, then `3 Card Name`). A deck is
   `{ legend, champion, battlefields, runes, main, side, bench }`, and each zone field is a
@@ -112,9 +117,9 @@ Libraries:
   `parseImport`, which identifies a DotGG, Legacy or TCGplayer file. A TCGplayer row matches first
   on the set code with the collector number, then on the name. **Never change or delete a row
   without a message:** the dialog gets `unmatched` and `converted`.
-- `routeFinish` (import) and rapid entry both **change a typed finish to the finish that the
-  printing has**. Most printings are foil-only, and `CardTile` hides the stepper for a missing
-  finish. Thus the copies become invisible and the user cannot change them.
+- `routeFinish` in `lib/cards.js` **changes a typed finish to the finish that the printing has**,
+  and the importer and rapid entry both call it. Most printings are foil-only, and `CardTile` hides
+  the stepper for a missing finish. Thus the copies become invisible and the user cannot change them.
 - [client/src/lib/icons.js](client/src/lib/icons.js) has the domain art in hard-coded maps:
   `DOMAIN_ICON` (plain art, the collection filter chips), `DOMAIN_POWER_ICON` (the art with the `2`
   suffix, the power costs and the runes in rules text), `RAINBOW_ICON` and `TAP_ICON`. **Write each

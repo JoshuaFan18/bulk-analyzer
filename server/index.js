@@ -41,49 +41,33 @@ app.post(
   })
 );
 
-// ---- Collection ----
-const EMPTY_COLLECTION = { cards: {}, updatedAt: null };
-app.get('/api/collection', handle(() => readJson('collection.json', EMPTY_COLLECTION)));
-app.put(
-  '/api/collection',
-  handle(async (req) => {
-    const cards = req.body?.cards;
-    if (!cards || typeof cards !== 'object') throw new Error('Body must include a cards object');
-    const payload = { cards, updatedAt: new Date().toISOString() };
-    await writeJson('collection.json', payload);
-    return payload;
-  })
-);
+// ---- Per-card stores ----
+// The collection, the wishlist and the tags are the same file shape behind the
+// same GET/PUT pair: { cards: {[cardId]: value}, updatedAt }. Only the route and
+// the filename differ, so one registration covers all three -- a fourth store is
+// one more cardStore() line, not another copy of this block.
+//
+// Tags are keyed by printing id, matching the collection rather than the folded
+// deck identity: { "OGN-042": ["Keep", "Trade binder"] }.
+const EMPTY_STORE = { cards: {}, updatedAt: null };
 
-// ---- Wishlist ----
-const EMPTY_WISHLIST = { cards: {}, updatedAt: null };
-app.get('/api/wishlist', handle(() => readJson('wishlist.json', EMPTY_WISHLIST)));
-app.put(
-  '/api/wishlist',
-  handle(async (req) => {
-    const cards = req.body?.cards;
-    if (!cards || typeof cards !== 'object') throw new Error('Body must include a cards object');
-    const payload = { cards, updatedAt: new Date().toISOString() };
-    await writeJson('wishlist.json', payload);
-    return payload;
-  })
-);
+function cardStore(route, file) {
+  app.get(route, handle(() => readJson(file, EMPTY_STORE)));
+  app.put(
+    route,
+    handle(async (req) => {
+      const cards = req.body?.cards;
+      if (!cards || typeof cards !== 'object') throw new Error('Body must include a cards object');
+      const payload = { cards, updatedAt: new Date().toISOString() };
+      await writeJson(file, payload);
+      return payload;
+    })
+  );
+}
 
-// ---- Card tags ----
-// { cards: { "OGN-042": ["Keep", "Trade binder"] }, updatedAt }. Keyed by
-// printing id, matching the collection rather than the folded deck identity.
-const EMPTY_TAGS = { cards: {}, updatedAt: null };
-app.get('/api/tags', handle(() => readJson('tags.json', EMPTY_TAGS)));
-app.put(
-  '/api/tags',
-  handle(async (req) => {
-    const cards = req.body?.cards;
-    if (!cards || typeof cards !== 'object') throw new Error('Body must include a cards object');
-    const payload = { cards, updatedAt: new Date().toISOString() };
-    await writeJson('tags.json', payload);
-    return payload;
-  })
-);
+cardStore('/api/collection', 'collection.json');
+cardStore('/api/wishlist', 'wishlist.json');
+cardStore('/api/tags', 'tags.json');
 
 // ---- Decks ----
 const deckFile = (id) => {

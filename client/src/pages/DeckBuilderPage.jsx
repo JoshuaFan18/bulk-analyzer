@@ -5,6 +5,8 @@ import { useApp } from '../state.jsx';
 import Modal from '../components/Modal.jsx';
 import DeckStats from '../components/DeckStats.jsx';
 import DeckCollectionList from '../components/DeckCollectionList.jsx';
+import DeckExportModal from '../components/DeckExportModal.jsx';
+import DeckTabs from '../components/DeckTabs.jsx';
 import CardDetailModal from '../components/CardDetailModal.jsx';
 import PowerCost from '../components/PowerCost.jsx';
 import DeckFilterModal from '../components/DeckFilterModal.jsx';
@@ -16,14 +18,18 @@ import {
   championOf,
   dedupeByIdentity,
   effectivePrice,
+  energyBucket,
   isBasePrinting,
   isToken,
+  matchesCost,
   matchesMight,
   matchesPower,
   matchesSupertype,
   matchesType,
+  mightBucket,
   ownedAcrossPrintings,
-  setLabel,
+  powerBucket,
+  setNameOptions,
   signatureAllowed,
   withinLegendDomains,
 } from '../lib/cards.js';
@@ -38,7 +44,6 @@ import {
   deckCopyLimit,
   deckEntries,
   emptyDeck,
-  exportDeckText,
   mainTarget,
   moveCard,
   parseDeckText,
@@ -101,6 +106,10 @@ const DEFAULT_FILTERS = {
 // towards the badge on the trigger button.
 const BADGE_KEYS = Object.keys(DEFAULT_FILTERS).filter((k) => k !== 'search');
 
+// A stat bucket as the counting pass wants it. A card with no value for the stat
+// belongs to no bucket, which is not the same as belonging to the "0" one.
+const bucketOf = (bucket) => (bucket == null ? [] : [bucket]);
+
 function activeFilterCount(filters) {
   return BADGE_KEYS.filter((k) =>
     k === 'colors' ? filters.colors.length > 0 : filters[k] !== DEFAULT_FILTERS[k]
@@ -145,11 +154,7 @@ export default function DeckBuilderPage() {
       .finally(() => setLoadingDeck(false));
   }, [id]);
 
-  const setNames = useMemo(() => {
-    const seen = new Map();
-    for (const c of cards) if (!seen.has(c.setCode)) seen.set(c.setCode, setLabel(c));
-    return [...seen.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [cards]);
+  const setNames = useMemo(() => setNameOptions(cards), [cards]);
 
   const legendCard = deck.legend ? cardsById.get(deck.legend) : null;
 
@@ -228,22 +233,13 @@ export default function DeckBuilderPage() {
         buckets: (c) => (c.colors || []).filter((x) => x !== 'Colorless'),
       },
       { key: 'type', test: (c) => matchesType(c, f.type), buckets: (c) => (c.type ? [c.type] : []) },
-      {
-        key: 'cost',
-        test: (c) =>
-          f.cost === 'any' || (f.cost === '7+' ? c.cost >= 7 : c.cost === Number(f.cost)),
-        buckets: (c) => (c.cost == null ? [] : [c.cost >= 7 ? '7+' : String(c.cost)]),
-      },
-      {
-        key: 'power',
-        test: (c) => matchesPower(c, f.power),
-        buckets: (c) => (c.power == null ? [] : [c.power >= 3 ? '3+' : String(c.power)]),
-      },
-      {
-        key: 'might',
-        test: (c) => matchesMight(c, f.might),
-        buckets: (c) => (c.might == null ? [] : [c.might >= 9 ? '9+' : String(c.might)]),
-      },
+      // The stat groups all read lib/cards.js for BOTH halves of the pair: the
+      // matcher decides the pool, the bucket helper decides which option's count
+      // a card lands in. Sharing one definition is what stops a count appearing
+      // beside an option that filters to something else.
+      { key: 'cost', test: (c) => matchesCost(c, f.cost), buckets: (c) => bucketOf(energyBucket(c)) },
+      { key: 'power', test: (c) => matchesPower(c, f.power), buckets: (c) => bucketOf(powerBucket(c)) },
+      { key: 'might', test: (c) => matchesMight(c, f.might), buckets: (c) => bucketOf(mightBucket(c)) },
       {
         key: 'rarity',
         test: (c) => f.rarity === 'any' || c.rarity === f.rarity,
@@ -545,23 +541,7 @@ export default function DeckBuilderPage() {
             placeholder="Deck name"
           />
 
-          <div className="deck-tabs">
-            <button className={panelTab === 'deck' ? 'on' : ''} onClick={() => setPanelTab('deck')}>
-              Deck
-            </button>
-            <button
-              className={panelTab === 'stats' ? 'on' : ''}
-              onClick={() => setPanelTab('stats')}
-            >
-              Stats
-            </button>
-            <button
-              className={panelTab === 'collection' ? 'on' : ''}
-              onClick={() => setPanelTab('collection')}
-            >
-              Collection
-            </button>
-          </div>
+          <DeckTabs value={panelTab} onChange={setPanelTab} />
 
           {panelTab === 'deck' && (
             <>
@@ -682,17 +662,7 @@ export default function DeckBuilderPage() {
       </div>
 
       {showExport && (
-        <Modal title="Export deck" onClose={() => setShowExport(false)}>
-          <textarea readOnly value={exportDeckText(deck, cardsById)} onFocus={(e) => e.target.select()} />
-          <div className="modal-actions">
-            <button
-              onClick={() => navigator.clipboard.writeText(exportDeckText(deck, cardsById))}
-            >
-              Copy to clipboard
-            </button>
-            <button onClick={() => setShowExport(false)}>Close</button>
-          </div>
-        </Modal>
+        <DeckExportModal deck={deck} cardsById={cardsById} onClose={() => setShowExport(false)} />
       )}
       {detailId && (
         <CardDetailModal card={cardsById.get(detailId)} onClose={() => setDetailId(null)} />

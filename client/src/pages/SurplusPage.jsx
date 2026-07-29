@@ -102,7 +102,7 @@ export default function SurplusPage() {
 
   const visible = useMemo(() => {
     const floor = Number(minValue) || 0;
-    let list = report.rows.filter((r) => {
+    const list = report.rows.filter((r) => {
       if (excludeKeep && r.keep) return false;
       if (r.value < floor) return false;
       if (typeFilter === 'any') return true;
@@ -111,7 +111,6 @@ export default function SurplusPage() {
       }
       return r.display.type === typeFilter;
     });
-    list = [...list];
     if (sort === 'value') list.sort((a, b) => b.value - a.value || b.surplus - a.surplus);
     else if (sort === 'copies') list.sort((a, b) => b.surplus - a.surplus || b.value - a.value);
     else list.sort((a, b) => a.display.name.localeCompare(b.display.name));

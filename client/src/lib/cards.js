@@ -48,9 +48,20 @@ export function setLabel(card) {
 // silently takes over from an existing printing.
 export const SET_RELEASE_ORDER = ['OGN', 'OGS', 'SFD', 'UNL', 'VEN', 'ARC'];
 
-function setRank(card) {
-  const i = SET_RELEASE_ORDER.indexOf(card.setCode);
+// Release position of a set code. An unknown (future) code sorts LAST, which a
+// bare indexOf would get backwards.
+export function setRank(code) {
+  const i = SET_RELEASE_ORDER.indexOf(code);
   return i === -1 ? SET_RELEASE_ORDER.length : i;
+}
+
+// The [code, label] pairs behind every set control, built from the cards that
+// actually exist rather than from SET_NAME_BY_CODE, so a code the pool never
+// produced is never offered.
+export function setNameOptions(cards) {
+  const seen = new Map();
+  for (const c of cards) if (!seen.has(c.setCode)) seen.set(c.setCode, setLabel(c));
+  return [...seen.entries()].sort((a, b) => a[0].localeCompare(b[0]));
 }
 
 export function normName(s) {
@@ -102,7 +113,7 @@ export function dedupeByIdentity(cards) {
       best.set(key, card);
       continue;
     }
-    const rank = setRank(card) - setRank(current);
+    const rank = setRank(card.setCode) - setRank(current.setCode);
     if (rank < 0 || (rank === 0 && card.id.localeCompare(current.id) < 0)) best.set(key, card);
   }
   return [...best.values()];
@@ -201,28 +212,53 @@ export function buildKeywordIndex(cards) {
   };
 }
 
+// Buckets for the Energy filter -- card.cost, the generic cost the DotGG feed
+// carries. Every consumer (the two filter surfaces, the pool's per-option counts
+// and the deck stats curve) reads these three exports, so an option can never
+// sit next to a count computed from a different bucketing.
+export const ENERGY_BUCKETS = ['0', '1', '2', '3', '4', '5', '6', '7+'];
+
+export function energyBucket(card) {
+  if (card.cost == null) return null;
+  return card.cost >= 7 ? '7+' : String(card.cost);
+}
+
+export function matchesCost(card, bucket) {
+  if (bucket === 'any') return true;
+  return energyBucket(card) === bucket;
+}
+
 // Buckets for the Might filter. Might tops out at 12 but thins out fast, so
 // the tail is grouped.
 export const MIGHT_BUCKETS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9+'];
 
+export function mightBucket(card) {
+  if (card.might == null) return null;
+  return card.might >= 9 ? '9+' : String(card.might);
+}
+
 export function matchesMight(card, bucket) {
   if (bucket === 'any') return true;
-  if (card.might == null) return false;
-  return bucket === '9+' ? card.might >= 9 : card.might === Number(bucket);
+  return mightBucket(card) === bucket;
 }
 
 // Buckets for the Power filter -- the COLORED cost, not card.cost (energy).
 // Power tops out at 4 in the data, so "3+" covers 3 and 4.
 export const POWER_BUCKETS = ['0', '1', '2', '3+'];
 
+export function powerBucket(card) {
+  if (card.power == null) return null;
+  return card.power >= 3 ? '3+' : String(card.power);
+}
+
 // Shared by the deck builder and the collection page so the two cannot drift.
 // Like matchesMight, a null stat is excluded rather than read as 0: the 311
 // cards with no power concept (legends, battlefields, runes, tokens) must not
-// answer to the "0" bucket, which 542 real zero-power cards already own.
+// answer to the "0" bucket, which 542 real zero-power cards already own. The
+// bucket helpers return null for that case, and null never equals a bucket name.
 export function matchesPower(card, bucket) {
   if (bucket === 'any') return true;
-  if (card.power == null) return false;
-  return bucket === '3+' ? card.power >= 3 : card.power === Number(bucket);
+  return powerBucket(card) === bucket;
 }
 
 // Type and supertype are two independent questions and get a control each, so
@@ -327,17 +363,15 @@ export function playsetTarget(card) {
   return 3;
 }
 
-export function collectionValue(cards, collectionCards) {
-  let value = 0;
-  let total = 0;
-  let unique = 0;
-  for (const card of cards) {
-    const { normal, foil, total: t } = ownedCopies(collectionCards[card.id]);
-    if (t > 0) {
-      unique += 1;
-      total += t;
-      value += normal * (card.price || 0) + foil * (card.foilPrice || 0);
-    }
-  }
-  return { value, total, unique };
+// 811 of the 1383 printings are foil-only and 54 are normal-only, so a CSV or a
+// typed token can always name a finish its printing does not come in.
+// CardTile hides the stepper for a missing finish, so recording the named finish
+// blindly would create copies the collection grid can never show or edit. Both
+// entry paths (the importer and rapid entry) route through this. A printing
+// flagged for neither finish keeps what it was given, rather than being retyped
+// into a finish that is just as absent.
+export function routeFinish(card, kind) {
+  if (kind === 'normal' && !card.hasNormal && card.hasFoil) return 'foil';
+  if (kind === 'foil' && !card.hasFoil && card.hasNormal) return 'normal';
+  return kind;
 }

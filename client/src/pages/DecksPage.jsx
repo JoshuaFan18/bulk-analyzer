@@ -2,9 +2,8 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api.js';
 import { useApp } from '../state.jsx';
-import { ZONES, deckEntries, mainWithChampion } from '../lib/deck.js';
+import { ZONES, deckEntries, deckPrice, mainWithChampion } from '../lib/deck.js';
 import { money, ownedAcrossPrintings } from '../lib/cards.js';
-import { deckPrice } from '../lib/deck.js';
 
 export default function DecksPage() {
   const { cardsById, ownedIndex, decks, reloadDecks, loading } = useApp();

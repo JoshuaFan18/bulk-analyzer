@@ -1,21 +1,23 @@
 import React from 'react';
 import Modal from './Modal.jsx';
 import DomainIcon from './DomainIcon.jsx';
-import { MIGHT_BUCKETS, POWER_BUCKETS, RARITIES, SUPERTYPES } from '../lib/cards.js';
-
-// The pool's energy buckets. Exported because DeckBuilderPage has to bucket
-// cards under exactly these values to count them, and two lists that drifted
-// would put a count next to an option that filters to something else.
-export const ENERGY_BUCKETS = ['0', '1', '2', '3', '4', '5', '6', '7+'];
+import TagFilterSelect from './TagFilterSelect.jsx';
+import {
+  ENERGY_BUCKETS,
+  MIGHT_BUCKETS,
+  POWER_BUCKETS,
+  RARITIES,
+  SUPERTYPES,
+} from '../lib/cards.js';
 
 // Card TYPE, which is not the pool tab strip above the grid. That strip is
 // zone-oriented (Legends, Champion, Battlefields, Runes) and decides which zone
-// a click adds to; this splits what a Main Deck can hold. The two compose.
-export const TYPE_FILTERS = ['Gear', 'Spell', 'Unit'];
+// a click adds to. This splits what a Main Deck can hold, and the two compose.
+const TYPE_FILTERS = ['Gear', 'Spell', 'Unit'];
 
 // Showcase printings never reach the pool (isBasePrinting drops them), so the
 // option would sit at a permanent 0.
-export const RARITY_FILTERS = RARITIES.filter((r) => r !== 'Showcase');
+const RARITY_FILTERS = RARITIES.filter((r) => r !== 'Showcase');
 
 // Controls that only exist in the with-a-legend layout. Their values survive
 // the legend being cleared, so the modal says so rather than filtering the pool
@@ -233,33 +235,15 @@ export default function DeckFilterModal({
             </select>
           </label>
 
-          {/* Same three-kind encoding the collection page's tag filter uses. */}
           <label>
             <span className="fm-field-label">Tags</span>
-            <select value={filters.tag} onChange={(e) => onChange({ tag: e.target.value })}>
-              <option value="any">Any tags</option>
-              <optgroup label="Status">
-                <option value="auto:wishlist">Wishlisted</option>
-                <option value="auto:indeck">In Deck</option>
-                <option value="auto:untagged">No custom tags</option>
-              </optgroup>
-              {customTags.length > 0 && (
-                <optgroup label="My tags">
-                  {customTags.map((t) => (
-                    <option key={t} value={`custom:${t}`}>
-                      {t}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-              <optgroup label="Card tags">
-                {apiTags.map((t) => (
-                  <option key={t} value={`api:${t}`}>
-                    {t}
-                  </option>
-                ))}
-              </optgroup>
-            </select>
+            <TagFilterSelect
+              value={filters.tag}
+              onChange={(tag) => onChange({ tag })}
+              customTags={customTags}
+              apiTags={apiTags}
+              anyLabel="Any tags"
+            />
           </label>
 
           <label>

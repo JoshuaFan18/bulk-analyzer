@@ -6,14 +6,14 @@ import ImportDialog from '../components/ImportDialog.jsx';
 import RapidEntryDialog from '../components/RapidEntryDialog.jsx';
 import CardDetailModal from '../components/CardDetailModal.jsx';
 import Modal from '../components/Modal.jsx';
-import DomainIcon from '../components/DomainIcon.jsx';
+import DomainChips from '../components/DomainChips.jsx';
+import TagFilterSelect from '../components/TagFilterSelect.jsx';
 import { exportDotGg } from '../lib/importExport.js';
 import { downloadText } from '../lib/download.js';
-import { DOMAIN_ICON } from '../lib/icons.js';
 import {
   CARD_TYPES,
   COLORS,
-  COLOR_HEX,
+  ENERGY_BUCKETS,
   MIGHT_BUCKETS,
   POWER_BUCKETS,
   RARITIES,
@@ -21,12 +21,13 @@ import {
   SUPERTYPES,
   cardMatchesText,
   isToken,
+  matchesCost,
   matchesMight,
   matchesPower,
   matchesSupertype,
   matchesType,
   ownedCopies,
-  setLabel,
+  setNameOptions,
   wishlistQty,
 } from '../lib/cards.js';
 import {
@@ -92,11 +93,14 @@ export default function CollectionPage() {
     setVisibleCount(PAGE_SIZE);
   };
 
-  const setNames = useMemo(() => {
-    const seen = new Map();
-    for (const c of cards) if (!seen.has(c.setCode)) seen.set(c.setCode, setLabel(c));
-    return [...seen.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [cards]);
+  const setNames = useMemo(() => setNameOptions(cards), [cards]);
+
+  const toggleColor = (color) =>
+    set({
+      colors: filters.colors.includes(color)
+        ? filters.colors.filter((c) => c !== color)
+        : [...filters.colors, color],
+    });
 
   const filtered = useMemo(() => {
     let list = cards.filter((card) => {
@@ -108,10 +112,7 @@ export default function CollectionPage() {
       if (!matchesSupertype(card, filters.supertype)) return false;
       if (!matchesMight(card, filters.might)) return false;
       if (!matchesPower(card, filters.power)) return false;
-      if (filters.cost !== 'any') {
-        const c = card.cost;
-        if (filters.cost === '7+' ? !(c >= 7) : c !== Number(filters.cost)) return false;
-      }
+      if (!matchesCost(card, filters.cost)) return false;
       if (filters.legality !== 'any') {
         if (filters.legality === 'banned' ? !card.banned : card.banned) return false;
       }
@@ -184,28 +185,11 @@ export default function CollectionPage() {
             ))}
           </select>
 
-          <div className="color-chips">
-            {COLORS.map((color) => (
-              <button
-                key={color}
-                className={`color-chip ${filters.colors.includes(color) ? 'on' : ''}`}
-                // Colorless has no art of its own and must not borrow the rainbow
-                // rune, which reads as "any domain" — the opposite of no domain.
-                // It is a bare coloured circle, and the title carries the name.
-                style={DOMAIN_ICON[color] ? undefined : { background: COLOR_HEX[color] }}
-                title={color}
-                onClick={() =>
-                  set({
-                    colors: filters.colors.includes(color)
-                      ? filters.colors.filter((c) => c !== color)
-                      : [...filters.colors, color],
-                  })
-                }
-              >
-                {DOMAIN_ICON[color] ? <DomainIcon domain={color} variant="plain" /> : null}
-              </button>
-            ))}
-          </div>
+          <DomainChips
+            options={COLORS.map((domain) => ({ domain }))}
+            selected={filters.colors}
+            onToggle={toggleColor}
+          />
           <label className="inline">
             <input
               type="checkbox"
@@ -217,12 +201,11 @@ export default function CollectionPage() {
 
           <select value={filters.cost} onChange={(e) => set({ cost: e.target.value })}>
             <option value="any">Cost: Any</option>
-            {[0, 1, 2, 3, 4, 5, 6].map((c) => (
+            {ENERGY_BUCKETS.map((c) => (
               <option key={c} value={c}>
                 Cost: {c}
               </option>
             ))}
-            <option value="7+">Cost: 7+</option>
           </select>
 
           <select value={filters.rarity} onChange={(e) => set({ rarity: e.target.value })}>
@@ -292,30 +275,13 @@ export default function CollectionPage() {
             <option value="no">No errata</option>
           </select>
 
-          <select value={filters.tag} onChange={(e) => set({ tag: e.target.value })}>
-            <option value="any">Tag: Any</option>
-            <optgroup label="Status">
-              <option value="auto:wishlist">Wishlisted</option>
-              <option value="auto:indeck">In Deck</option>
-              <option value="auto:untagged">No custom tags</option>
-            </optgroup>
-            {customTags.length > 0 && (
-              <optgroup label="My tags">
-                {customTags.map((t) => (
-                  <option key={t} value={`custom:${t}`}>
-                    {t}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-            <optgroup label="Card tags">
-              {apiTags.map((t) => (
-                <option key={t} value={`api:${t}`}>
-                  {t}
-                </option>
-              ))}
-            </optgroup>
-          </select>
+          <TagFilterSelect
+            value={filters.tag}
+            onChange={(tag) => set({ tag })}
+            customTags={customTags}
+            apiTags={apiTags}
+            anyLabel="Tag: Any"
+          />
 
           <input
             type="search"

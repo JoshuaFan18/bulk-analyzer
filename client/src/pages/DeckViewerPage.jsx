@@ -2,9 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { useApp } from '../state.jsx';
-import Modal from '../components/Modal.jsx';
 import DeckStats from '../components/DeckStats.jsx';
 import DeckCollectionList from '../components/DeckCollectionList.jsx';
+import DeckExportModal from '../components/DeckExportModal.jsx';
+import DeckTabs from '../components/DeckTabs.jsx';
 import CardDetailModal from '../components/CardDetailModal.jsx';
 import { COLOR_HEX, money, ownedAcrossPrintings } from '../lib/cards.js';
 import {
@@ -14,7 +15,6 @@ import {
   deckColors,
   deckPrice,
   emptyDeck,
-  exportDeckText,
   mainWithChampion,
   zoneCount,
 } from '../lib/deck.js';
@@ -101,17 +101,7 @@ export default function DeckViewerPage() {
         </div>
       </div>
 
-      <div className="deck-tabs">
-        <button className={tab === 'deck' ? 'on' : ''} onClick={() => setTab('deck')}>
-          Deck
-        </button>
-        <button className={tab === 'stats' ? 'on' : ''} onClick={() => setTab('stats')}>
-          Stats
-        </button>
-        <button className={tab === 'collection' ? 'on' : ''} onClick={() => setTab('collection')}>
-          Collection
-        </button>
-      </div>
+      <DeckTabs value={tab} onChange={setTab} />
 
       {tab === 'deck' && (
         <DeckSections
@@ -141,21 +131,7 @@ export default function DeckViewerPage() {
       )}
 
       {showExport && (
-        <Modal title="Export deck" onClose={() => setShowExport(false)}>
-          <textarea
-            readOnly
-            value={exportDeckText(deck, cardsById)}
-            onFocus={(e) => e.target.select()}
-          />
-          <div className="modal-actions">
-            <button
-              onClick={() => navigator.clipboard.writeText(exportDeckText(deck, cardsById))}
-            >
-              Copy to clipboard
-            </button>
-            <button onClick={() => setShowExport(false)}>Close</button>
-          </div>
-        </Modal>
+        <DeckExportModal deck={deck} cardsById={cardsById} onClose={() => setShowExport(false)} />
       )}
     </div>
   );

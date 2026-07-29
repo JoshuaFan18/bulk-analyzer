@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useApp } from '../state.jsx';
-import { COLOR_HEX, money } from '../lib/cards.js';
+import { COLOR_HEX, ENERGY_BUCKETS, energyBucket, money } from '../lib/cards.js';
 import { deckPrice, zoneCount } from '../lib/deck.js';
 
 // Small single-hue stat charts. Identity is carried by text labels,
@@ -21,15 +21,12 @@ export default function DeckStats({ deck }) {
       const card = cardsById.get(cardId);
       if (!card) continue;
       mainCount += count;
-      const bucket = card.cost == null ? '—' : card.cost >= 7 ? '7+' : String(card.cost);
+      const bucket = energyBucket(card) ?? '—';
       curve.set(bucket, (curve.get(bucket) || 0) + count);
       types.set(card.type || '—', (types.get(card.type || '—') || 0) + count);
       for (const d of card.colors || []) domains.set(d, (domains.get(d) || 0) + count);
     }
-    const buckets = ['0', '1', '2', '3', '4', '5', '6', '7+'].map((b) => ({
-      label: b,
-      value: curve.get(b) || 0,
-    }));
+    const buckets = ENERGY_BUCKETS.map((b) => ({ label: b, value: curve.get(b) || 0 }));
     const maxCurve = Math.max(1, ...buckets.map((b) => b.value));
     return {
       buckets,

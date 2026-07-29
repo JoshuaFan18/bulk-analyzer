@@ -3,19 +3,17 @@ import { api } from '../api.js';
 import { useApp } from '../state.jsx';
 import {
   COLORS,
-  COLOR_HEX,
-  SET_RELEASE_ORDER,
   cardMatchesText,
   isToken,
   money,
   normName,
   setLabel,
+  setRank,
 } from '../lib/cards.js';
-import { DOMAIN_ICON } from '../lib/icons.js';
 import { csvCell, downloadText } from '../lib/download.js';
 import { KEEP_TAG, hasTag } from '../lib/tags.js';
 import CardDetailModal from '../components/CardDetailModal.jsx';
-import DomainIcon from '../components/DomainIcon.jsx';
+import DomainChips from '../components/DomainChips.jsx';
 
 const PREVIEW_W = 260;
 const PREVIEW_H = 364;
@@ -31,13 +29,6 @@ const PRESETS = [
 ];
 
 const stripVariant = (id) => String(id).replace(/([0-9])[a-z]$/i, '$1');
-
-// An unknown (future) set code sorts last rather than first, which a bare
-// indexOf would do.
-const setRank = (code) => {
-  const i = SET_RELEASE_ORDER.indexOf(code);
-  return i < 0 ? SET_RELEASE_ORDER.length : i;
-};
 
 // Sorters for the bulk table. A card the meta never plays has playRate 0, which
 // is a real answer here (unlike a missing price), so it sorts as zero.
@@ -142,6 +133,27 @@ function ResultTable({ rows, onOpen, onHover, onToggleKeep }) {
         ))}
       </tbody>
     </table>
+  );
+}
+
+// One collapsible list. All four lists on the page are the same shape: a
+// heading that says how many rows survived the toolbar out of how many the run
+// produced, an explanation of what the list means, and the table. `empty` is the
+// text for a list the filters emptied, `noRows` for one the run never filled.
+function ResultPanel({ title, rows, total, open, children, empty, noRows, tableProps }) {
+  return (
+    <details className="panel" open={open}>
+      <summary>
+        {title} ({rows.length}
+        {rows.length !== total ? ` of ${total}` : ''})
+      </summary>
+      {children}
+      {rows.length === 0 ? (
+        <p className="muted">{total === 0 ? noRows ?? empty : empty}</p>
+      ) : (
+        <ResultTable rows={rows} {...tableProps} />
+      )}
+    </details>
   );
 }
 
@@ -387,22 +399,20 @@ export default function BulkAnalyzerPage() {
         .map((e) => ({ ...e, keep: hasTag(tags, e.card.id, KEEP_TAG) }));
   }, [query, setFilter, domainFilter, rarityFilter, playFilter, minCopies, sort, tags]);
 
-  const visible = useMemo(
-    () => (result ? applyView(result.bulk) : []),
-    [result, applyView]
-  );
-  const visibleProtected = useMemo(
-    () => (result ? applyView(result.protectedCards) : []),
-    [result, applyView]
-  );
-  const visibleKept = useMemo(
-    () => (result ? applyView(result.keptCards) : []),
-    [result, applyView]
-  );
-  const visiblePricy = useMemo(
-    () => (result ? applyView(result.pricyCards) : []),
-    [result, applyView]
-  );
+  // The same toolbar narrows all four lists, so they are filtered together
+  // rather than through four copies of the same memo.
+  const {
+    bulk: visible,
+    protectedCards: visibleProtected,
+    keptCards: visibleKept,
+    pricyCards: visiblePricy,
+  } = useMemo(() => {
+    const empty = { bulk: [], protectedCards: [], keptCards: [], pricyCards: [] };
+    if (!result) return empty;
+    return Object.fromEntries(
+      Object.keys(empty).map((key) => [key, applyView(result[key])])
+    );
+  }, [result, applyView]);
 
   const kepts = useMemo(() => visible.filter((e) => e.keep).length, [visible]);
 
@@ -438,6 +448,9 @@ export default function BulkAnalyzerPage() {
   };
 
   const running = phase === 'legends' || phase === 'maps';
+
+  // Every list wires its table to the same three handlers.
+  const tableProps = { onOpen: setDetailId, onHover: showHover, onToggleKeep: toggleCardTag };
 
   return (
     <div>
@@ -585,24 +598,11 @@ export default function BulkAnalyzerPage() {
                 </label>
               ))}
             </span>
-            {domainOptions.length > 0 && (
-              <div className="color-chips">
-                {domainOptions.map(({ domain, count }) => (
-                  <button
-                    key={domain}
-                    className={`color-chip ${domainFilter.includes(domain) ? 'on' : ''}`}
-                    // Colorless has no art of its own and must not borrow the
-                    // rainbow rune, which reads as "any domain". It is a bare
-                    // coloured circle, and the title carries the name.
-                    style={DOMAIN_ICON[domain] ? undefined : { background: COLOR_HEX[domain] }}
-                    title={`${domain} (${count})`}
-                    onClick={() => toggleDomain(domain)}
-                  >
-                    {DOMAIN_ICON[domain] ? <DomainIcon domain={domain} variant="plain" /> : null}
-                  </button>
-                ))}
-              </div>
-            )}
+            <DomainChips
+              options={domainOptions}
+              selected={domainFilter}
+              onToggle={toggleDomain}
+            />
             <select value={rarityFilter} onChange={(e) => setRarityFilter(e.target.value)}>
               <option value="any">Common + Uncommon</option>
               <option value="Common">Common</option>
@@ -646,109 +646,59 @@ export default function BulkAnalyzerPage() {
             </button>
           </div>
 
-          {/* Open by default, because this is the answer the page exists to
-              give. It closes like the three lists under it. */}
-          <details className="panel" open>
-            <summary>
-              True bulk ({visible.length}
-              {visible.length !== result.bulk.length ? ` of ${result.bulk.length}` : ''})
-            </summary>
+          {/* The bulk list is open by default, because this is the answer the
+              page exists to give. The three under it start closed. */}
+          <ResultPanel
+            title="True bulk"
+            open
+            rows={visible}
+            total={result.bulk.length}
+            tableProps={tableProps}
+            noRows="No true bulk found — none of your owned commons/uncommons matched the rule."
+            empty={`No bulk card matches these filters. ${result.bulk.length} cards are in the run.`}
+          />
 
-          {result.bulk.length === 0 ? (
-            <p className="muted">
-              No true bulk found — none of your owned commons/uncommons matched the rule.
-            </p>
-          ) : visible.length === 0 ? (
-            <p className="muted">
-              No bulk card matches these filters. {result.bulk.length} cards are in the run.
-            </p>
-          ) : (
-            <ResultTable
-              rows={visible}
-              onOpen={setDetailId}
-              onHover={showHover}
-              onToggleKeep={toggleCardTag}
-            />
-          )}
-          </details>
-
-          <details className="panel">
-            <summary>
-              Cheap but protected by meta play ({visibleProtected.length}
-              {visibleProtected.length !== result.protectedCards.length
-                ? ` of ${result.protectedCards.length}`
-                : ''}
-              )
-            </summary>
+          <ResultPanel
+            title="Cheap but protected by meta play"
+            rows={visibleProtected}
+            total={result.protectedCards.length}
+            tableProps={tableProps}
+            empty="No card here matches these filters."
+          >
             <p className="muted">
               These commons/uncommons are worth under {money(result.priceLimit)} but exceed{' '}
               {result.playRateLimit}% play rate in at least one meta deck, so they are not true
               bulk.
             </p>
-            {visibleProtected.length === 0 ? (
-              <p className="muted">No card here matches these filters.</p>
-            ) : (
-              <ResultTable
-                rows={visibleProtected}
-                onOpen={setDetailId}
-                onHover={showHover}
-                onToggleKeep={toggleCardTag}
-              />
-            )}
-          </details>
+          </ResultPanel>
 
-          <details className="panel">
-            <summary>
-              Above the price limit, but not played ({visiblePricy.length}
-              {visiblePricy.length !== result.pricyCards.length
-                ? ` of ${result.pricyCards.length}`
-                : ''}
-              )
-            </summary>
+          <ResultPanel
+            title="Above the price limit, but not played"
+            rows={visiblePricy}
+            total={result.pricyCards.length}
+            tableProps={tableProps}
+            empty="No card here matches these filters."
+          >
             <p className="muted">
               The meta plays these at {result.playRateLimit}% or less, and the price is the only
               bulk test they fail. They are worth {money(result.priceLimit)} or more, so they are
               the cards to sell one by one rather than by the box.
             </p>
-            {visiblePricy.length === 0 ? (
-              <p className="muted">No card here matches these filters.</p>
-            ) : (
-              <ResultTable
-                rows={visiblePricy}
-                onOpen={setDetailId}
-                onHover={showHover}
-                onToggleKeep={toggleCardTag}
-              />
-            )}
-          </details>
+          </ResultPanel>
 
-          <details className="panel">
-            <summary>
-              Locked by {KEEP_TAG} ({visibleKept.length}
-              {visibleKept.length !== result.keptCards.length
-                ? ` of ${result.keptCards.length}`
-                : ''}
-              )
-            </summary>
+          <ResultPanel
+            title={`Locked by ${KEEP_TAG}`}
+            rows={visibleKept}
+            total={result.keptCards.length}
+            tableProps={tableProps}
+            noRows="No locked card would be bulk under these limits."
+            empty="No locked card matches these filters."
+          >
             <p className="muted">
               These pass every bulk test, and only the {KEEP_TAG} tag keeps them out of the list
               above. Unlock one here and it joins the bulk list at the next run.
             </p>
-            {visibleKept.length === 0 ? (
-              <p className="muted">
-                {result.keptCards.length === 0
-                  ? 'No locked card would be bulk under these limits.'
-                  : 'No locked card matches these filters.'}
-              </p>
-            ) : (
-              <ResultTable
-                rows={visibleKept}
-                onOpen={setDetailId}
-                onHover={showHover}
-                onToggleKeep={toggleCardTag}
-              />
-            )}
-          </details>
+          </ResultPanel>
 
           {result.unknownPrice > 0 && (
             <p className="muted" style={{ marginTop: 10 }}>

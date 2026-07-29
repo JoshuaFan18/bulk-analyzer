@@ -105,42 +105,51 @@ export function AppProvider({ children }) {
   // Latest collection snapshot, so debounced saves always send fresh data
   const nextRef = useRef(undefined);
 
+  // Writes one card's counts into `map`, clamping at 0 and deleting the entry
+  // when both finishes reach it. Every collection mutator goes through this: a
+  // negative quantity must never be written, and a card taken back to zero must
+  // not linger in collection.json as {normal: 0, foil: 0}. All readers of the
+  // collection therefore have to tolerate a missing key.
+  const putEntry = (map, cardId, counts) => {
+    const entry = { normal: 0, foil: 0, ...map[cardId], ...counts };
+    entry.normal = Math.max(0, entry.normal);
+    entry.foil = Math.max(0, entry.foil);
+    if (entry.normal === 0 && entry.foil === 0) delete map[cardId];
+    else map[cardId] = entry;
+  };
+
+  const commitCollection = (next) => {
+    nextRef.current = next;
+    scheduleSave(collectionTimer, () => api.saveCollection(nextRef.current));
+    return next;
+  };
+
   const setQty = (cardId, kind, qty) => {
     setCollection((prev) => {
-      const entry = { normal: 0, foil: 0, ...prev[cardId] };
-      entry[kind] = Math.max(0, qty);
       const next = { ...prev };
-      if (entry.normal === 0 && entry.foil === 0) delete next[cardId];
-      else next[cardId] = entry;
-      nextRef.current = next;
-      scheduleSave(collectionTimer, () => api.saveCollection(nextRef.current));
-      return next;
+      putEntry(next, cardId, { [kind]: qty });
+      return commitCollection(next);
     });
   };
 
   const replaceCollection = (entries) => {
     setCollection(entries);
-    nextRef.current = entries;
-    scheduleSave(collectionTimer, () => api.saveCollection(entries));
+    commitCollection(entries);
   };
 
-  // Deltas may be negative (rapid entry's "-3" removes a copy), so this clamps
-  // and prunes exactly like setQty does. Without that a removal would write a
-  // negative quantity, and a card taken back to zero would linger in
-  // collection.json as {normal: 0, foil: 0} instead of being deleted.
+  // Deltas may be negative -- rapid entry's "-3" removes a copy -- so the sum is
+  // what putEntry clamps.
   const mergeCollection = (entries) => {
     setCollection((prev) => {
       const next = { ...prev };
       for (const [id, add] of Object.entries(entries)) {
-        const entry = { normal: 0, foil: 0, ...next[id] };
-        entry.normal = Math.max(0, entry.normal + (add.normal || 0));
-        entry.foil = Math.max(0, entry.foil + (add.foil || 0));
-        if (entry.normal === 0 && entry.foil === 0) delete next[id];
-        else next[id] = entry;
+        const held = next[id] || {};
+        putEntry(next, id, {
+          normal: (held.normal || 0) + (add.normal || 0),
+          foil: (held.foil || 0) + (add.foil || 0),
+        });
       }
-      nextRef.current = next;
-      scheduleSave(collectionTimer, () => api.saveCollection(nextRef.current));
-      return next;
+      return commitCollection(next);
     });
   };
 

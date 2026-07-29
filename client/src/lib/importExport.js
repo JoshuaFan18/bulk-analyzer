@@ -1,4 +1,5 @@
-import { SET_CODE_BY_NAME, normName } from './cards.js';
+import { SET_CODE_BY_NAME, normName, routeFinish } from './cards.js';
+import { csvCell } from './download.js';
 
 // Minimal CSV parser handling quoted fields with embedded commas/quotes.
 export function parseCsv(text) {
@@ -64,33 +65,19 @@ function collectorFromNumber(numberField) {
   return digits.padStart(3, '0') + suffix;
 }
 
-// 811 of the 1383 printings are foil-only and 54 are normal-only, so any file
-// can name a finish its printing does not come in — TCGplayer's Printing column
-// is typed against product listings, not against this id space, and a DotGG
-// export edited by hand drifts the same way. CardTile hides the stepper for a
-// missing finish, so importing the named finish blindly would create copies the
-// collection grid can never show or edit. Route to the finish the card actually
-// has, the same reroute resolveRapidEntry does for a typed one. A printing
-// flagged for neither finish keeps what the file said rather than being retyped
-// into a finish that is just as absent.
-export function routeFinish(card, kind) {
-  if (kind === 'normal' && !card.hasNormal && card.hasFoil) return 'foil';
-  if (kind === 'foil' && !card.hasFoil && card.hasNormal) return 'normal';
-  return kind;
-}
-
 // Returns { entries: {cardId: {normal, foil}}, matched, unmatched: [line...],
 // converted: [{id, name, from, to, qty}] }
 export function parseImport(text, cards) {
   const format = detectFormat(text);
+  // One id map serves both lookups: a set code plus a collector number IS the
+  // printing id, so matching "OGN" + "039a" is the same map read as matching a
+  // DotGG row's CardId.
   const byId = new Map(cards.map((c) => [c.id.toUpperCase(), c]));
   const byName = new Map();
-  const bySetAndNumber = new Map();
   for (const c of cards) {
     const key = normName(c.name);
     if (!byName.has(key)) byName.set(key, []);
     byName.get(key).push(c);
-    bySetAndNumber.set(c.id.toUpperCase(), c);
   }
 
   const entries = {};
@@ -163,11 +150,7 @@ export function parseImport(text, cards) {
 
       let card = null;
       if (setCode && collector) {
-        card = bySetAndNumber.get(`${setCode}-${collector.toUpperCase()}`) || null;
-        if (!card) {
-          // try without zero padding variations
-          card = byId.get(`${setCode}-${collector}`.toUpperCase()) || null;
-        }
+        card = byId.get(`${setCode}-${collector}`.toUpperCase()) || null;
       }
       if (!card) {
         const candidates = byName.get(normName(row[iName])) || [];
@@ -194,9 +177,11 @@ export function exportDotGg(cards, collectionCards) {
   for (const card of sorted) {
     const entry = collectionCards[card.id];
     if (!entry || ((entry.normal || 0) === 0 && (entry.foil || 0) === 0)) continue;
-    const name = /[",]/.test(card.name) ? `"${card.name.replace(/"/g, '""')}"` : card.name;
-    const set = /[",]/.test(card.setName) ? `"${card.setName}"` : card.setName;
-    lines.push(`${card.id},${entry.normal || 0},${entry.foil || 0},${name},${set}`);
+    lines.push(
+      `${card.id},${entry.normal || 0},${entry.foil || 0},${csvCell(card.name)},${csvCell(
+        card.setName
+      )}`
+    );
   }
   return lines.join('\n');
 }

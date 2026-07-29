@@ -20,7 +20,7 @@ import DomainChips from '../components/DomainChips.jsx';
 const PREVIEW_W = 260;
 const PREVIEW_H = 364;
 
-const DEFAULT_PRICE_LIMIT = 0.15;
+const DEFAULT_PRICE_LIMIT = 0.2;
 const DEFAULT_PLAY_RATE_LIMIT = 10;
 
 const stripVariant = (id) => String(id).replace(/([0-9])[a-z]$/i, '$1');

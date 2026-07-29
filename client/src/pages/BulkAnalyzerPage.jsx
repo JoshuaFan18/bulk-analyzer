@@ -94,8 +94,8 @@ function KeepButton({ card, kept, onToggle }) {
 }
 
 // Every list on the page shows the same columns, so one table serves all four.
-// A locked row keeps its place and is struck through, because the run behind it
-// cannot be rebuilt from the new tag.
+// A locked row needs no styling of its own: the lock moves it into the locked
+// list, which says the same thing.
 function ResultTable({ rows, onOpen, onHover, onToggleKeep }) {
   return (
     <table className="data">
@@ -113,7 +113,7 @@ function ResultTable({ rows, onOpen, onHover, onToggleKeep }) {
       </thead>
       <tbody>
         {rows.map((e) => (
-          <tr key={e.card.id} className={e.keep ? 'row-kept' : ''}>
+          <tr key={e.card.id}>
             <td>
               <CardCell card={e.card} onOpen={onOpen} onHover={onHover} />
             </td>
@@ -250,12 +250,8 @@ export default function BulkAnalyzerPage() {
         return candidates.reduce((a, b) => (b.playRate > a.playRate ? b : a));
       };
 
-      const bulk = [];
-      const protectedCards = [];
-      const keptCards = [];
-      const pricyCards = [];
+      const rows = [];
       let unknownPrice = 0;
-      let keptCount = 0;
 
       // Blank or nonsense input falls back to the defaults rather than
       // analyzing against NaN.
@@ -270,55 +266,47 @@ export default function BulkAnalyzerPage() {
         if (normalOwned <= 0) continue;
         if (card.rarity !== 'Common' && card.rarity !== 'Uncommon') continue;
         if (card.type === 'Rune' || isToken(card)) continue;
-        // A locked card still goes through the price and play-rate tests, so the
-        // third list can show what the lock is actually holding back. It never
-        // reaches bulk or the totals.
-        const locked = hasTag(tags, card.id, KEEP_TAG);
-        if (locked) keptCount += 1;
 
         const price = card.price;
         if (price == null || price <= 0) {
-          if (!locked) unknownPrice += 1;
+          if (!hasTag(tags, card.id, KEEP_TAG)) unknownPrice += 1;
           continue;
         }
         const use = lookupUsage(card);
-        const entry = {
+        const played = use && use.playRate > maxPlayRate;
+
+        // The lock is a live tag, so a row carries the list it belongs to with
+        // the lock *ignored* and the page routes it at render time. That way the
+        // button moves a card between the lists at the click, and a re-run
+        // produces exactly what is already on screen.
+        let home;
+        if (price >= maxPrice) {
+          // The price is the only test this card fails. A card that is both too
+          // expensive and too played belongs to no list, because the meta
+          // already answers it.
+          if (played) continue;
+          home = 'pricyCards';
+        } else {
+          home = played ? 'protectedCards' : 'bulk';
+        }
+
+        rows.push({
           card,
           copies: normalOwned,
           price,
           value: normalOwned * price,
           playRate: use?.playRate ?? 0,
           legend: use?.legend ?? null,
-        };
-        const played = use && use.playRate > maxPlayRate;
-
-        // The price is the only test this card fails. A card that is both too
-        // expensive and too played belongs to neither list, because the meta
-        // already answers it.
-        if (price >= maxPrice) {
-          if (!played && !locked) pricyCards.push(entry);
-          continue;
-        }
-        if (locked) keptCards.push(entry);
-        else if (played) protectedCards.push(entry);
-        else bulk.push(entry);
+          home,
+        });
       }
-
-      bulk.sort((a, b) => b.value - a.value);
-      protectedCards.sort((a, b) => b.playRate - a.playRate);
-      keptCards.sort((a, b) => b.value - a.value);
-      pricyCards.sort((a, b) => b.value - a.value);
 
       setResult({
         metagameId: effectiveId,
         fetchedAt: legendsRes.fetchedAt,
         allLegends,
-        bulk,
-        protectedCards,
-        keptCards,
-        pricyCards,
+        rows,
         unknownPrice,
-        keptCount,
         // Captured so the prose describes the run that produced this table,
         // not whatever the inputs say now.
         priceLimit: maxPrice,
@@ -331,13 +319,13 @@ export default function BulkAnalyzerPage() {
     }
   };
 
-  // Every row the run produced. The toolbar drives all four lists, so its
-  // options have to cover all four or a chip a lower list needs would be
-  // missing.
+  // Every row the run produced, each carrying the lock as it stands now. The
+  // toolbar drives all four lists, so its options have to cover all four or a
+  // chip a lower list needs would be missing.
   const allRows = useMemo(() => {
     if (!result) return [];
-    return [...result.bulk, ...result.protectedCards, ...result.keptCards, ...result.pricyCards];
-  }, [result]);
+    return result.rows.map((e) => ({ ...e, keep: hasTag(tags, e.card.id, KEEP_TAG) }));
+  }, [result, tags]);
 
   // Only the sets the run actually produced, so a box never empties every
   // table at once.
@@ -374,9 +362,16 @@ export default function BulkAnalyzerPage() {
     );
   };
 
+  // A locked row belongs to the locked list whatever the run said, so the lock
+  // button moves the card between the lists immediately.
+  const partition = (rows) => {
+    const out = { bulk: [], protectedCards: [], keptCards: [], pricyCards: [] };
+    for (const e of rows) out[e.keep ? 'keptCards' : e.home].push(e);
+    return out;
+  };
+
   // One filter and one sort for every list on the page, so a search or a domain
-  // narrows all four the same way. Tagging Keep after a run cannot rebuild the
-  // lists, so the row stays in place and carries the flag instead of moving.
+  // narrows all four the same way.
   const applyView = useMemo(() => {
     const text = query.trim();
     const floor = Number(minCopies) > 0 ? Number(minCopies) : 1;
@@ -395,49 +390,43 @@ export default function BulkAnalyzerPage() {
           if (e.copies < floor) return false;
           return true;
         })
-        .sort(SORTS[sort])
-        .map((e) => ({ ...e, keep: hasTag(tags, e.card.id, KEEP_TAG) }));
-  }, [query, setFilter, domainFilter, rarityFilter, playFilter, minCopies, sort, tags]);
+        .sort(SORTS[sort]);
+  }, [query, setFilter, domainFilter, rarityFilter, playFilter, minCopies, sort]);
 
-  // The same toolbar narrows all four lists, so they are filtered together
-  // rather than through four copies of the same memo.
+  // Both partitions come from the same live rows: `full` is what the run holds
+  // now, and `visible*` is that narrowed by the toolbar. The panels compare the
+  // two to say "12 of 40".
+  const full = useMemo(() => partition(allRows), [allRows]);
+
   const {
     bulk: visible,
     protectedCards: visibleProtected,
     keptCards: visibleKept,
     pricyCards: visiblePricy,
-  } = useMemo(() => {
-    const empty = { bulk: [], protectedCards: [], keptCards: [], pricyCards: [] };
-    if (!result) return empty;
-    return Object.fromEntries(
-      Object.keys(empty).map((key) => [key, applyView(result[key])])
-    );
-  }, [result, applyView]);
-
-  const kepts = useMemo(() => visible.filter((e) => e.keep).length, [visible]);
+  } = useMemo(() => partition(applyView(allRows)), [allRows, applyView]);
 
   // The stat boxes describe the whole run. The filters narrow only the table
   // below them, which reports its own totals.
-  const summary = useMemo(() => {
-    if (!result) return null;
-    return {
-      unique: result.bulk.length,
-      copies: result.bulk.reduce((s, e) => s + e.copies, 0),
-      value: result.bulk.reduce((s, e) => s + e.value, 0),
-    };
-  }, [result]);
+  const summary = useMemo(
+    () => ({
+      unique: full.bulk.length,
+      copies: full.bulk.reduce((s, e) => s + e.copies, 0),
+      value: full.bulk.reduce((s, e) => s + e.value, 0),
+    }),
+    [full]
+  );
 
-  const shownTotals = useMemo(() => {
-    const counted = visible.filter((e) => !e.keep);
-    return {
-      copies: counted.reduce((s, e) => s + e.copies, 0),
-      value: counted.reduce((s, e) => s + e.value, 0),
-    };
-  }, [visible]);
+  const shownTotals = useMemo(
+    () => ({
+      copies: visible.reduce((s, e) => s + e.copies, 0),
+      value: visible.reduce((s, e) => s + e.value, 0),
+    }),
+    [visible]
+  );
 
   const exportCsv = () => {
     const lines = ['CardId,Name,Set,Rarity,NormalCopies,Price,TotalValue,MaxMetaPlayRate'];
-    for (const e of visible.filter((r) => !r.keep)) {
+    for (const e of visible) {
       lines.push(
         `${e.card.id},${csvCell(e.card.name)},${e.card.setCode},${e.card.rarity},${
           e.copies
@@ -630,7 +619,7 @@ export default function BulkAnalyzerPage() {
                 you can never sell. */}
             <span className="count-note">
               bulk: {shownTotals.copies} copies · {money(shownTotals.value)}
-              {kepts > 0 ? ` · ${kepts} kept out` : ''}
+              {visibleKept.length > 0 ? ` · ${visibleKept.length} locked out` : ''}
             </span>
             <select value={sort} onChange={(e) => setSort(e.target.value)}>
               <option value="value">Sort: Value</option>
@@ -652,16 +641,16 @@ export default function BulkAnalyzerPage() {
             title="True bulk"
             open
             rows={visible}
-            total={result.bulk.length}
+            total={full.bulk.length}
             tableProps={tableProps}
             noRows="No true bulk found — none of your owned commons/uncommons matched the rule."
-            empty={`No bulk card matches these filters. ${result.bulk.length} cards are in the run.`}
+            empty={`No bulk card matches these filters. ${full.bulk.length} cards are in the run.`}
           />
 
           <ResultPanel
             title="Cheap but protected by meta play"
             rows={visibleProtected}
-            total={result.protectedCards.length}
+            total={full.protectedCards.length}
             tableProps={tableProps}
             empty="No card here matches these filters."
           >
@@ -675,7 +664,7 @@ export default function BulkAnalyzerPage() {
           <ResultPanel
             title="Above the price limit, but not played"
             rows={visiblePricy}
-            total={result.pricyCards.length}
+            total={full.pricyCards.length}
             tableProps={tableProps}
             empty="No card here matches these filters."
           >
@@ -689,14 +678,15 @@ export default function BulkAnalyzerPage() {
           <ResultPanel
             title={`Locked by ${KEEP_TAG}`}
             rows={visibleKept}
-            total={result.keptCards.length}
+            total={full.keptCards.length}
             tableProps={tableProps}
-            noRows="No locked card would be bulk under these limits."
+            noRows="No card in this run carries the lock."
             empty="No locked card matches these filters."
           >
             <p className="muted">
-              These pass every bulk test, and only the {KEEP_TAG} tag keeps them out of the list
-              above. Unlock one here and it joins the bulk list at the next run.
+              The {KEEP_TAG} tag holds these out of the lists above whatever the numbers say. Lock a
+              card anywhere on this page and it moves here at the click; unlock it here and it
+              returns to the list its price and play rate put it in.
             </p>
           </ResultPanel>
 
@@ -706,10 +696,10 @@ export default function BulkAnalyzerPage() {
               left out of the bulk list to be safe.
             </p>
           )}
-          {result.keptCount > 0 && (
+          {full.keptCards.length > 0 && (
             <p className="muted" style={{ marginTop: 4 }}>
-              {result.keptCount} owned common/uncommon card(s) carry the {KEEP_TAG} tag, and{' '}
-              {result.keptCards.length} of them would be bulk under these limits.
+              {full.keptCards.length} card(s) in this run carry the {KEEP_TAG} tag and are held in
+              the locked list.
             </p>
           )}
         </>

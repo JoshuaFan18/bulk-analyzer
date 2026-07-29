@@ -220,8 +220,9 @@ The user can change the two limits, but a reload gives the defaults again. The p
 into `result` and the text reads them from `result`, thus a change after a run cannot make the text
 different from the table.
 
-A "meta legend" has a `sharePct` more than 0 on the legends page, thus a legend at 0% is not a meta
-legend. A meta map always uses `date_range=all&relevance=3`. The riftdecks names and ids do not
+The page scans **every legend** on the legends page, and a `sharePct` of 0 does not exclude one,
+because a fringe deck still protects the cards that it plays. The pill list shows each legend that
+the run scanned with its share. A meta map always uses `date_range=all&relevance=3`. The riftdecks names and ids do not
 match the DotGG ids correctly, thus the page records the usage under three keys: the exact id, the
 id with no variant (`OGN-039a` becomes `OGN-039`), and `n:<normName>`. The lookup takes the highest
 play rate of the keys that it finds.

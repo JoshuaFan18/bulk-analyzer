@@ -208,8 +208,9 @@ export default function BulkAnalyzerPage() {
     setResult(null);
     try {
       const legendsRes = await api.getMetaLegends(effectiveId, refresh);
+      // Every legend on the page is scanned, including the ones at 0%
+      // metashare: a fringe deck still protects the cards it plays.
       const allLegends = legendsRes.legends;
-      const metaLegends = allLegends.filter((l) => l.sharePct > 0);
 
       // Highest play rate seen for each card across all meta decks,
       // keyed by card id, variant-stripped id, and normalized name.
@@ -223,10 +224,10 @@ export default function BulkAnalyzerPage() {
       };
 
       setPhase('maps');
-      setProgress({ current: 0, total: metaLegends.length, name: '' });
-      for (let i = 0; i < metaLegends.length; i++) {
-        const legend = metaLegends[i];
-        setProgress({ current: i, total: metaLegends.length, name: legend.name });
+      setProgress({ current: 0, total: allLegends.length, name: '' });
+      for (let i = 0; i < allLegends.length; i++) {
+        const legend = allLegends[i];
+        setProgress({ current: i, total: allLegends.length, name: legend.name });
         const mm = await api.getMetaMap(effectiveId, legend.slug, refresh);
         for (const c of mm.cards) {
           if (c.playRate == null) continue;
@@ -236,7 +237,7 @@ export default function BulkAnalyzerPage() {
           }
           record(`n:${normName(c.name)}`, c.playRate, legend.name);
         }
-        setProgress({ current: i + 1, total: metaLegends.length, name: legend.name });
+        setProgress({ current: i + 1, total: allLegends.length, name: legend.name });
       }
 
       const lookupUsage = (card) => {
@@ -312,7 +313,6 @@ export default function BulkAnalyzerPage() {
         metagameId: effectiveId,
         fetchedAt: legendsRes.fetchedAt,
         allLegends,
-        metaLegends,
         bulk,
         protectedCards,
         keptCards,
@@ -548,13 +548,13 @@ export default function BulkAnalyzerPage() {
               <div className="k">Total bulk value</div>
             </div>
             <div className="stat-box">
-              <div className="v">{result.metaLegends.length}</div>
+              <div className="v">{result.allLegends.length}</div>
               <div className="k">Meta decks checked</div>
             </div>
           </div>
 
           <div className="section-head">
-            <h3>Meta decks (displayed metashare &gt; 0%)</h3>
+            <h3>Meta decks scanned</h3>
             <span className="muted">
               data fetched {new Date(result.fetchedAt).toLocaleString()}
             </span>
@@ -566,7 +566,7 @@ export default function BulkAnalyzerPage() {
                 className={`pill ${l.sharePct > 0 ? 'green' : ''}`}
                 title={`${l.decks ?? '?'} decks`}
               >
-                {l.name} · {l.sharePct}%{l.sharePct <= 0 ? ' (excluded)' : ''}
+                {l.name} · {l.sharePct}%
               </span>
             ))}
           </div>

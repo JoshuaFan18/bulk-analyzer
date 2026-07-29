@@ -1,8 +1,10 @@
 import React, { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../api.js';
 import { useApp } from '../state.jsx';
 import {
   COLORS,
+  METAGAME_PRESETS,
   cardMatchesText,
   isToken,
   money,
@@ -18,15 +20,8 @@ import DomainChips from '../components/DomainChips.jsx';
 const PREVIEW_W = 260;
 const PREVIEW_H = 364;
 
-const DEFAULT_PRICE_LIMIT = 0.25;
+const DEFAULT_PRICE_LIMIT = 0.15;
 const DEFAULT_PLAY_RATE_LIMIT = 10;
-
-const PRESETS = [
-  { id: '1', label: 'Origins (1)' },
-  { id: '2', label: 'Spiritforged (2)' },
-  { id: '3', label: 'Unleashed (3)' },
-  { id: '4', label: 'Vendetta (4)' },
-];
 
 const stripVariant = (id) => String(id).replace(/([0-9])[a-z]$/i, '$1');
 
@@ -187,7 +182,6 @@ export default function BulkAnalyzerPage() {
   const [customId, setCustomId] = useState('');
   const [priceLimit, setPriceLimit] = useState(String(DEFAULT_PRICE_LIMIT));
   const [playRateLimit, setPlayRateLimit] = useState(String(DEFAULT_PLAY_RATE_LIMIT));
-  const [refresh, setRefresh] = useState(false);
   const [phase, setPhase] = useState('idle'); // idle | legends | maps | done | error
   const [progress, setProgress] = useState({ current: 0, total: 0, name: '' });
   const [result, setResult] = useState(null);
@@ -231,7 +225,7 @@ export default function BulkAnalyzerPage() {
     setError(null);
     setResult(null);
     try {
-      const legendsRes = await api.getMetaLegends(effectiveId, refresh);
+      const legendsRes = await api.getMetaLegends(effectiveId);
       // Every legend on the page is scanned, including the ones at 0%
       // metashare: a fringe deck still protects the cards it plays.
       const allLegends = legendsRes.legends;
@@ -252,7 +246,7 @@ export default function BulkAnalyzerPage() {
       for (let i = 0; i < allLegends.length; i++) {
         const legend = allLegends[i];
         setProgress({ current: i, total: allLegends.length, name: legend.name });
-        const mm = await api.getMetaMap(effectiveId, legend.slug, refresh);
+        const mm = await api.getMetaMap(effectiveId, legend.slug);
         for (const c of mm.cards) {
           if (c.playRate == null) continue;
           if (c.cardId) {
@@ -522,7 +516,7 @@ export default function BulkAnalyzerPage() {
         <label className="field">
           <span>Metagame</span>
           <select value={metagameId} onChange={(e) => setMetagameId(e.target.value)}>
-            {PRESETS.map((p) => (
+            {METAGAME_PRESETS.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.label}
               </option>
@@ -562,14 +556,6 @@ export default function BulkAnalyzerPage() {
             onChange={(e) => setPlayRateLimit(e.target.value)}
             style={{ width: 110 }}
           />
-        </label>
-        <label className="inline" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <input
-            type="checkbox"
-            checked={refresh}
-            onChange={(e) => setRefresh(e.target.checked)}
-          />
-          Re-fetch fresh data from riftdecks.com (ignore cache)
         </label>
         <button className="primary" onClick={run} disabled={running}>
           {running ? 'Analyzing…' : 'Run analysis'}
@@ -618,7 +604,8 @@ export default function BulkAnalyzerPage() {
           <div className="section-head">
             <h3>Meta decks scanned</h3>
             <span className="muted">
-              data fetched {new Date(result.fetchedAt).toLocaleString()}
+              data fetched {new Date(result.fetchedAt).toLocaleString()} —{' '}
+              <Link to="/config">refresh fresh meta data</Link> on the Config page
             </span>
           </div>
           <div className="hstack" style={{ marginBottom: 14 }}>

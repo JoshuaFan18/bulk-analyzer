@@ -1,112 +1,76 @@
 # Riftbound Manager
 
-A local Riftbound TCG collection manager, true bulk analyzer, and deck builder.
-React (Vite) frontend + Node/Express backend. All data is stored as JSON files
-under `data/` on your disk — no accounts, nothing leaves your machine except
-fetches to the public card/price API and riftdecks.com.
+Riftbound Manager is a collection manager, a bulk analyzer and a deck builder for
+the Riftbound TCG. It is a local app for one user.
 
-## Run it
+The client is React (Vite). The server is Express. All data is JSON files in
+`data/`. There is no database and there are no accounts. The server gets the card
+data from the DotGG API and the meta data from riftdecks.com. No other data goes
+out of your machine.
+
+## Start the app
 
 ```bash
 npm install
 npm run dev
 ```
 
-Then open http://localhost:5173. The first page load downloads the card
-database (1,383 cards) from the DotGG API and caches it in `data/cards.json`.
+Then open http://localhost:5173. Express listens on port 5175.
 
-For a production-style single server: `npm run build` then `npm start`
-(serves everything on http://localhost:5175).
+For one server, do `npm run build`, then `npm start`. This serves the app on
+http://localhost:5175.
 
 ## Pages
 
-### Collection (`/collection`)
-- Card grid with normal/foil copy steppers and a stats sidebar (value estimate,
-  per-set / rarity / printing / element completion).
-- Filters: set, color, cost, **might**, type, rarity, **keyword**,
-  **legality**, **errata**, and text search. The type filter covers both card
-  types (Unit, Spell, Gear, Battlefield, Rune, Legend) and super types
-  (Champion, Signature, Token, Basic). Banned cards carry a red badge.
-- **Import** accepts three formats, auto-detected:
-  - DotGG CSV: `CardId,Normal,Foil,Name,Set`
-  - Legacy CSV: `Normal,Foil,CardId`
-  - TCGplayer collection export (the format in `tcg_to_riftgg/example/input.csv`)
-- **Export** produces DotGG CSV accepted by riftbound.gg.
-- **Update TCGplayer prices** re-fetches prices only when you press it. The
-  "prices as of" timestamp shows the last refresh.
+**Collection** shows all 1383 printings. Set the number of normal copies and foil
+copies for each printing. Use the filters for the set, the domain, the energy
+cost, the power cost, the might, the type, the rarity, the keyword and the tag.
+Rapid entry lets you type collector numbers quickly. Import accepts a DotGG CSV
+file, a Legacy CSV file or a TCGplayer CSV file. Push "Update prices" to get new
+prices.
 
-### True Bulk Analyzer (`/bulk-analyzer`)
-True bulk = a common/uncommon whose **normal** TCGplayer price is under $0.25
-**and** that is not played in more than 10% of decks for any meta legend.
-- Meta legends = legends whose displayed metashare is above 0% on
-  `riftdecks.com/legends?metagame_id=<x>` (Origins=1, Spiritforged=2,
-  Unleashed=3, Vendetta=4 — pick a preset or type a custom id).
-- Per-legend usage comes from each legend's meta-map page with
-  `date_range=all&relevance=3`.
-- Only normal copies you own are counted — foils are never bulk. Runes and
-  tokens are excluded entirely.
-- Results show the bulk list (exportable as CSV) plus a "cheap but protected
-  by meta" list. Scrapes are cached in `data/meta-cache/` — tick the re-fetch
-  box to force fresh data.
+**Surplus** shows the copies that no deck can play. The deck limit is 3 copies,
+but 12 for a Rune and 1 for a Legend and a Battlefield. The copies fold across
+the printings. The page assumes that you keep the most expensive copies.
 
-### Deck Builder (`/deckbuilder`)
-Legend (1) / Chosen Champion (1) / Battlefields (3) / Runes (12) / Main Deck
-(40, max 3 copies) / Sideboard (0-10) / The Bench (planning area). Click a
-pool card to add, right-click to remove. Pool tiles show how many copies you
-own. The panel has Deck / Stats / Collection tabs — Collection shows owned vs
-needed for every deck card. Decks import/export as plain text.
+**True Bulk Analyzer** finds the cards that you can sell in bulk. A card is true
+bulk when all of these conditions are true:
 
-The pool lists **base printings only** — 942 of the 1,383 cards. Promos
-(`-P`), alternate arts (`OGN-039a`, `UNL-024A`), and the `-STAR` / `-SP`
-variants are hidden so each card appears once. Runes keep one base printing
-per set (`SFD-R01`), giving 24 across the four sets. The collection manager
-still shows every printing — this filter applies only to the builder.
+- The rarity is Common or Uncommon. The card is not a Rune and not a token.
+- The card does not have the `Keep` tag.
+- You own a minimum of one **normal** copy. A foil is never bulk.
+- The normal price is less than the price limit ($0.25).
+- The maximum play rate across the meta legends is not more than the play-rate
+  limit (10%).
 
-**Ownership folds across printings.** Every deck view counts all printings of
-a card toward the base printing, so an alt-art or promo copy you own counts
-normally. The collection manager still tracks each printing separately.
+The page also shows the cards that the meta protects, the cards above the price
+limit and the cards that the `Keep` tag holds back. A card with no price stays out
+of the bulk list.
 
-**The legend enforces deck legality.** Selecting a legend narrows the pool to
-what is actually playable — roughly 942 → 372 cards:
+**Deck Builder** makes a deck of 1 Legend, 1 Chosen Champion, 3 Battlefields, 12
+Runes, 40 main cards and a maximum of 10 sideboard cards. The bench holds the
+cards that you plan to add. The legend controls the legality: each card must be in
+the two domains of the legend, a signature card needs the legend of its champion,
+and the deck holds a maximum of 3 signature cards. 13 cards are banned. The pool
+shows one printing for each card, but ownership folds across all the printings.
 
-- **Domains.** Every card must sit inside the legend's two domains. Colorless
-  cards and battlefields are always legal, and all 49 legends stay visible so
-  you can still swap legends. Runes narrow to the legend's two colors (8 of 24).
-- **Signature cards.** Only your legend's champion's signatures remain, matched
-  on the legend's champion name rather than any shared tag, because legends
-  also carry region tags such as `Yordle`.
-- **Signature cap.** At most 3 signature cards total, counted across different
-  signature names rather than 3 of each. The panel shows a `3/3` counter and
-  blocks the fourth.
+**My Decks** lists the saved decks with the price and the missing copies.
 
-Cards already in a deck are re-checked, so importing a deck or swapping the
-legend flags off-domain cards, other champions' signatures, and an over-cap
-signature count instead of leaving the deck silently illegal.
+**Deck Viewer** shows a saved deck with the card images, the statistics and the
+cards that you must still get.
 
-**Banned cards** are flagged with a red badge and reported by the deck panel
-whether or not a legend is selected — 13 cards are currently banned, several of
-which were meta staples (The Dreaming Tree, Reaver's Row).
-
-**Owned only** filters the pool to cards you have, counting all printings.
-
-Builder filters also include might, super type, keyword, legality, and errata.
-Keywords are parsed out of the effect text rather than read from a field — the
-API has no keyword column — giving 33 of them ([Reaction], [Deflect], [Equip],
-[Hidden], …) with the numeric suffix of things like `[Shield 2]` stripped.
-
-### Deck Viewer (`/decks/view/<id>`)
-Card-image layout of a saved deck with price, curve, and domain stats. The
-**Collection** tab lists owned vs missing copies, lets you tag any missing
-card as **wishlisted** (or wishlist all missing), and shows the estimated
-cost to complete. Wishlisted cards appear in the collection manager under
-"Show: Wishlisted".
+**Config** imports the power costs. The DotGG feed gives only the energy cost, thus
+the app gets the power cost from api.riftcodex.com. The button sends only the
+cards that have no power cost.
 
 ## Data files
 
 | File | Contents |
 | --- | --- |
-| `data/cards.json` | Card database + prices (refreshed via the button) |
-| `data/collection.json` | Your collection counts |
-| `data/wishlist.json` | Wishlisted card ids |
-| `data/decks/*.json` | Saved decks |
-| `data/meta-cache/*.json` | Cached riftdecks.com scrapes |
+| `data/cards.json` | The card data and the prices |
+| `data/collection.json` | Your copies of each printing |
+| `data/wishlist.json` | The cards that you want |
+| `data/tags.json` | Your custom tags, which include `Keep` |
+| `data/power.json` | The power costs that the Config page imports |
+| `data/decks/*.json` | The saved decks |
+| `data/meta-cache/*.json` | The riftdecks.com data in the cache |

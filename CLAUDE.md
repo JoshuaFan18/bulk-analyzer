@@ -2,6 +2,8 @@
 
 This file gives guidance to Claude Code (claude.ai/code) for work in this repository.
 
+Always use ASD-STE100 English in responses and documentation.
+
 ## Commands
 
 ```bash

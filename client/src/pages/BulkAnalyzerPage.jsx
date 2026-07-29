@@ -519,16 +519,13 @@ export default function BulkAnalyzerPage() {
                     key={domain}
                     className={`color-chip ${domainFilter.includes(domain) ? 'on' : ''}`}
                     // Colorless has no art of its own and must not borrow the
-                    // rainbow rune, which reads as "any domain".
+                    // rainbow rune, which reads as "any domain". It is a bare
+                    // coloured circle, and the title carries the name.
                     style={DOMAIN_ICON[domain] ? undefined : { background: COLOR_HEX[domain] }}
                     title={`${domain} (${count})`}
                     onClick={() => toggleDomain(domain)}
                   >
-                    {DOMAIN_ICON[domain] ? (
-                      <DomainIcon domain={domain} variant="plain" />
-                    ) : (
-                      domain[0]
-                    )}
+                    {DOMAIN_ICON[domain] ? <DomainIcon domain={domain} variant="plain" /> : null}
                   </button>
                 ))}
               </div>

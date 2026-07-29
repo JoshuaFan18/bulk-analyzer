@@ -214,8 +214,8 @@ a {
   gap: 4px;
 }
 
-/* Holds a domain PNG, except for Colorless, which has no art and keeps the
-   coloured letter it always had (its fill comes from an inline style). */
+/* Holds a domain PNG, except for Colorless, which has no art and stays an empty
+   coloured circle (its fill comes from an inline style). */
 .color-chip {
   width: 30px;
   height: 30px;
@@ -226,9 +226,6 @@ a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
-  font-weight: 700;
-  color: #0b0d10;
   opacity: 0.4;
 }
 

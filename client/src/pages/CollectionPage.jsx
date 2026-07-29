@@ -191,6 +191,7 @@ export default function CollectionPage() {
                 className={`color-chip ${filters.colors.includes(color) ? 'on' : ''}`}
                 // Colorless has no art of its own and must not borrow the rainbow
                 // rune, which reads as "any domain" — the opposite of no domain.
+                // It is a bare coloured circle, and the title carries the name.
                 style={DOMAIN_ICON[color] ? undefined : { background: COLOR_HEX[color] }}
                 title={color}
                 onClick={() =>
@@ -201,7 +202,7 @@ export default function CollectionPage() {
                   })
                 }
               >
-                {DOMAIN_ICON[color] ? <DomainIcon domain={color} variant="plain" /> : color[0]}
+                {DOMAIN_ICON[color] ? <DomainIcon domain={color} variant="plain" /> : null}
               </button>
             ))}
           </div>

@@ -19,8 +19,20 @@ server. A card is true bulk when **all** of these conditions are true:
   price is unknown, and the page removes that card. Do not think that it is inexpensive.
 - The maximum play rate across the meta legends is less than or equal to the play-rate limit
   (`DEFAULT_PLAY_RATE_LIMIT`, 10%). A card above the limit goes into the "protected by meta" list.
+- **Optional — field popularity.** A checkbox turns on a second protection test that reads the same
+  staples list as the Staples analyzer (`api.getStaples`, `data/meta-cache/staples.json`). When on,
+  a card whose popularity is **more than** the popularity limit (`DEFAULT_POPULARITY_LIMIT`, 10%) is
+  protected too, on the same footing as a high play rate: `protectedByMeta = played || popular`. The
+  limit is strictly greater, thus a card **at** the limit is still bulk, the same rule the play rate
+  uses. The test is **off by default**, thus a run without it is exactly the old run. The popularity is a share of the most
+  played card, not a share of the lists — the same measure the Staples Field mode uses, and the two
+  pages must agree about it. A card missing from the staples list is below the list floor
+  (`minPopularity`, 1%), thus a null popularity **passes** the test and is not protected. The run
+  fetches the staples list first (phase `staples`), then the legends and maps as before, and never
+  sends `refresh`. When the test ran, the table gains a **Field popularity** column, the source note
+  names the list, and the CSV gains a `FieldPopularity` column.
 
-The user can change the two limits, but a reload gives the defaults again. The page puts the values
+The user can change the limits, but a reload gives the defaults again. The page puts the values
 into `result` and the text reads them from `result`, thus a change after a run cannot make the text
 different from the table.
 

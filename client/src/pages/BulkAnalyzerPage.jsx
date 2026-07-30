@@ -23,6 +23,9 @@ const PREVIEW_H = 364;
 
 const DEFAULT_PRICE_LIMIT = 0.2;
 const DEFAULT_PLAY_RATE_LIMIT = 10;
+// The optional field-popularity test reads the same staples list as the
+// Staples analyzer, thus it starts at that page's field default.
+const DEFAULT_POPULARITY_LIMIT = 10;
 
 const stripVariant = (id) => String(id).replace(/([0-9])[a-z]$/i, '$1');
 
@@ -92,7 +95,7 @@ function KeepButton({ card, kept, onToggle }) {
 // Every list on the page shows the same columns, so one table serves all four.
 // A locked row needs no styling of its own: the lock moves it into the locked
 // list, which says the same thing.
-function ResultTable({ rows, onOpen, onHover, onToggleKeep, onRemoveOne, onRemoveAll }) {
+function ResultTable({ rows, showPopularity, onOpen, onHover, onToggleKeep, onRemoveOne, onRemoveAll }) {
   const showRemove = Boolean(onRemoveOne);
   return (
     <table className="data">
@@ -105,6 +108,7 @@ function ResultTable({ rows, onOpen, onHover, onToggleKeep, onRemoveOne, onRemov
           <th className="num">Price</th>
           <th className="num">Value</th>
           <th className="num">Max meta play rate</th>
+          {showPopularity ? <th className="num">Field popularity</th> : null}
           <th>{KEEP_TAG}</th>
           {showRemove ? <th>Remove</th> : null}
         </tr>
@@ -124,6 +128,9 @@ function ResultTable({ rows, onOpen, onHover, onToggleKeep, onRemoveOne, onRemov
               {e.playRate > 0 ? `${e.playRate}%` : '—'}
               {e.legend ? <span className="muted"> ({e.legend})</span> : null}
             </td>
+            {showPopularity ? (
+              <td className="num">{e.popularity != null ? `${e.popularity}%` : '—'}</td>
+            ) : null}
             <td>
               <KeepButton card={e.card} kept={e.keep} onToggle={onToggleKeep} />
             </td>
@@ -183,7 +190,12 @@ export default function BulkAnalyzerPage() {
   const [customId, setCustomId] = useState('');
   const [priceLimit, setPriceLimit] = useState(String(DEFAULT_PRICE_LIMIT));
   const [playRateLimit, setPlayRateLimit] = useState(String(DEFAULT_PLAY_RATE_LIMIT));
-  const [phase, setPhase] = useState('idle'); // idle | legends | maps | done | error
+  // The optional field-popularity test. Off by default, so an existing run is
+  // unchanged; when on, a card at or above the limit is held out of the bulk
+  // list even if the meta decks never play it.
+  const [usePopularity, setUsePopularity] = useState(false);
+  const [popularityLimit, setPopularityLimit] = useState(String(DEFAULT_POPULARITY_LIMIT));
+  const [phase, setPhase] = useState('idle'); // idle | staples | legends | maps | done | error
   const [progress, setProgress] = useState({ current: 0, total: 0, name: '' });
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
@@ -222,10 +234,54 @@ export default function BulkAnalyzerPage() {
   const effectiveId = customId.trim() || metagameId;
 
   const run = async () => {
-    setPhase('legends');
+    // The staples list is the one extra request, and it comes first so the
+    // meta-map progress bar is the last thing the user watches.
+    setPhase(usePopularity ? 'staples' : 'legends');
     setError(null);
     setResult(null);
     try {
+      // Highest field popularity for each card, keyed the same three ways as the
+      // play-rate usage map, because the riftdecks ids do not match the DotGG
+      // ids. A card missing from the list is under the list floor, thus a null
+      // popularity passes the test rather than failing it.
+      let fieldPop = null;
+      let staplesSource = null;
+      if (usePopularity) {
+        const staples = await api.getStaples();
+        staplesSource = {
+          cardCount: staples.cards.length,
+          fetchedAt: staples.fetchedAt,
+          minPopularity: staples.minPopularity,
+        };
+        fieldPop = new Map();
+        const recordPop = (key, pop) => {
+          if (!key) return;
+          const prev = fieldPop.get(key);
+          if (prev == null || pop > prev) fieldPop.set(key, pop);
+        };
+        for (const c of staples.cards) {
+          // The collector number and the image disagree for the runes, thus
+          // both ids are keys.
+          for (const id of [c.cardId, c.imgCardId]) {
+            if (!id) continue;
+            recordPop(id.toUpperCase(), c.popularity);
+            recordPop(stripVariant(id.toUpperCase()), c.popularity);
+          }
+          recordPop(`n:${normName(c.name)}`, c.popularity);
+        }
+      }
+
+      const lookupPopularity = (card) => {
+        if (!fieldPop) return null;
+        const candidates = [
+          fieldPop.get(card.id.toUpperCase()),
+          fieldPop.get(stripVariant(card.id.toUpperCase())),
+          fieldPop.get(`n:${normName(card.name)}`),
+        ].filter((v) => v != null);
+        return candidates.length ? Math.max(...candidates) : null;
+      };
+
+      setPhase('legends');
       const legendsRes = await api.getMetaLegends(effectiveId);
       // Every legend on the page is scanned, including the ones at 0%
       // metashare: a fringe deck still protects the cards it plays.
@@ -279,6 +335,10 @@ export default function BulkAnalyzerPage() {
         Number(playRateLimit) >= 0 && playRateLimit !== ''
           ? Number(playRateLimit)
           : DEFAULT_PLAY_RATE_LIMIT;
+      const maxPopularity =
+        Number(popularityLimit) >= 0 && popularityLimit !== ''
+          ? Number(popularityLimit)
+          : DEFAULT_POPULARITY_LIMIT;
 
       for (const card of cards) {
         const normalOwned = collection[card.id]?.normal || 0;
@@ -292,7 +352,13 @@ export default function BulkAnalyzerPage() {
           continue;
         }
         const use = lookupUsage(card);
-        const played = use && use.playRate > maxPlayRate;
+        // A card is protected when a meta deck plays it above the play-rate
+        // limit, or, when the optional test is on, when the whole field plays it
+        // above the popularity limit. Either measure keeps it out of bulk.
+        const popularity = usePopularity ? lookupPopularity(card) : null;
+        const played = Boolean(use && use.playRate > maxPlayRate);
+        const popular = popularity != null && popularity > maxPopularity;
+        const protectedByMeta = played || popular;
 
         // The lock is a live tag, so a row carries the list it belongs to with
         // the lock *ignored* and the page routes it at render time. That way the
@@ -301,12 +367,12 @@ export default function BulkAnalyzerPage() {
         let home;
         if (price >= maxPrice) {
           // The price is the only test this card fails. A card that is both too
-          // expensive and too played belongs to no list, because the meta
+          // expensive and protected belongs to no list, because the meta
           // already answers it.
-          if (played) continue;
+          if (protectedByMeta) continue;
           home = 'pricyCards';
         } else {
-          home = played ? 'protectedCards' : 'bulk';
+          home = protectedByMeta ? 'protectedCards' : 'bulk';
         }
 
         rows.push({
@@ -316,6 +382,7 @@ export default function BulkAnalyzerPage() {
           value: normalOwned * price,
           playRate: use?.playRate ?? 0,
           legend: use?.legend ?? null,
+          popularity,
           home,
         });
       }
@@ -330,6 +397,9 @@ export default function BulkAnalyzerPage() {
         // not whatever the inputs say now.
         priceLimit: maxPrice,
         playRateLimit: maxPlayRate,
+        usePopularity,
+        popularityLimit: maxPopularity,
+        staplesSource,
       });
       setPhase('done');
     } catch (e) {
@@ -455,18 +525,23 @@ export default function BulkAnalyzerPage() {
   );
 
   const exportCsv = () => {
-    const lines = ['CardId,Name,Set,Rarity,NormalCopies,Price,TotalValue,MaxMetaPlayRate'];
+    const withPop = Boolean(result.usePopularity);
+    const head =
+      'CardId,Name,Set,Rarity,NormalCopies,Price,TotalValue,MaxMetaPlayRate' +
+      (withPop ? ',FieldPopularity' : '');
+    const lines = [head];
     for (const e of visible) {
-      lines.push(
+      const row =
         `${e.card.id},${csvCell(e.card.name)},${e.card.setCode},${e.card.rarity},${
           e.copies
-        },${e.price.toFixed(2)},${e.value.toFixed(2)},${e.playRate}`
-      );
+        },${e.price.toFixed(2)},${e.value.toFixed(2)},${e.playRate}` +
+        (withPop ? `,${e.popularity ?? ''}` : '');
+      lines.push(row);
     }
     downloadText(`true-bulk-metagame-${result.metagameId}.csv`, lines.join('\n'));
   };
 
-  const running = phase === 'legends' || phase === 'maps';
+  const running = phase === 'staples' || phase === 'legends' || phase === 'maps';
 
   // The bulk rows carry only normal copies, so the remove buttons touch the
   // normal count and leave any foils alone. They read the live collection, not
@@ -506,7 +581,12 @@ export default function BulkAnalyzerPage() {
 
   // Every list wires its table to the same three handlers. Only the bulk list
   // adds the remove buttons, so it gets its own props.
-  const tableProps = { onOpen: setDetailId, onHover: showHover, onToggleKeep: toggleCardTag };
+  const tableProps = {
+    showPopularity: Boolean(result?.usePopularity),
+    onOpen: setDetailId,
+    onHover: showHover,
+    onToggleKeep: toggleCardTag,
+  };
   const bulkTableProps = { ...tableProps, onRemoveOne: removeOne, onRemoveAll: removeAll };
 
   return (
@@ -558,11 +638,37 @@ export default function BulkAnalyzerPage() {
             style={{ width: 110 }}
           />
         </label>
+        {/* The optional field-popularity test. The checkbox turns it on and the
+            number is the limit; a card at or above it is held out of bulk. */}
+        <label className="field">
+          <span>Max field popularity (%)</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6, height: 32 }}>
+            <input
+              type="checkbox"
+              checked={usePopularity}
+              onChange={(e) => setUsePopularity(e.target.checked)}
+              title="Also hold out cards the whole field plays above the limit"
+            />
+            <input
+              type="number"
+              min="0"
+              max="100"
+              step="1"
+              value={popularityLimit}
+              onChange={(e) => setPopularityLimit(e.target.value)}
+              disabled={!usePopularity}
+              style={{ width: 90 }}
+            />
+          </span>
+        </label>
         <button className="primary" onClick={run} disabled={running}>
           {running ? 'Analyzing…' : 'Run analysis'}
         </button>
       </div>
 
+      {phase === 'staples' && (
+        <div className="bulk-progress">Reading the most played cards of the format…</div>
+      )}
       {phase === 'legends' && (
         <div className="bulk-progress">Fetching legends for metagame {effectiveId}…</div>
       )}
@@ -620,6 +726,18 @@ export default function BulkAnalyzerPage() {
               </span>
             ))}
           </div>
+
+          {result.usePopularity && (
+            <p className="muted" style={{ marginTop: -6, marginBottom: 14 }}>
+              Field popularity from the riftdecks.com staples list (
+              {result.staplesSource.cardCount} cards), fetched{' '}
+              {new Date(result.staplesSource.fetchedAt).toLocaleString()}. A common/uncommon at{' '}
+              above {result.popularityLimit}% popularity is held out of the bulk list.
+              {result.popularityLimit < result.staplesSource.minPopularity
+                ? ` The list stops at ${result.staplesSource.minPopularity}%, thus a limit below that cannot hold out more cards.`
+                : ''}
+            </p>
+          )}
 
           {/* One bar for every list on the page, so a search or a domain
               narrows all of them together. It sits above the panels, and not
@@ -728,8 +846,11 @@ export default function BulkAnalyzerPage() {
           >
             <p className="muted">
               These commons/uncommons are worth under {money(result.priceLimit)} but exceed{' '}
-              {result.playRateLimit}% play rate in at least one meta deck, so they are not true
-              bulk.
+              {result.playRateLimit}% play rate in at least one meta deck
+              {result.usePopularity
+                ? `, or exceed ${result.popularityLimit}% field popularity,`
+                : ''}{' '}
+              so they are not true bulk.
             </p>
           </ResultPanel>
 
@@ -741,9 +862,13 @@ export default function BulkAnalyzerPage() {
             empty="No card here matches these filters."
           >
             <p className="muted">
-              The meta plays these at {result.playRateLimit}% or less, and the price is the only
-              bulk test they fail. They are worth {money(result.priceLimit)} or more, so they are
-              the cards to sell one by one rather than by the box.
+              The meta plays these at {result.playRateLimit}% or less
+              {result.usePopularity
+                ? ` and at ${result.popularityLimit}% field popularity or less`
+                : ''},
+              and the price is the only bulk test they fail. They are worth{' '}
+              {money(result.priceLimit)} or more, so they are the cards to sell one by one rather
+              than by the box.
             </p>
           </ResultPanel>
 

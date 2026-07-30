@@ -36,6 +36,10 @@ npm run build    # Vite build into dist/
 npm start        # Express only on :5175. It also serves dist/ if dist/ exists.
 ```
 
+On Windows, `run-riftbound.bat` does the one-server mode (`npm start`) and opens the
+browser. It builds first if `dist/` is not there. It is a convenience wrapper only, and
+no build step or route depends on it.
+
 There is no test suite, no linter and no formatter. Thus `npm run build` is the least expensive
 check. It finds the bad imports and the bad syntax that Vite hot reload accepts.
 

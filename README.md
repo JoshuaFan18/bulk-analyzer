@@ -20,6 +20,14 @@ Then open http://localhost:5173. Express listens on port 5175.
 For one server, do `npm run build`, then `npm start`. This serves the app on
 http://localhost:5175.
 
+### Windows one-click start
+
+`run-riftbound.bat` starts the one-server mode and opens the browser. Double-click
+it, or make a desktop shortcut to it. The first run installs the dependencies and
+builds the app if either is not there. The command window is the server; close it
+to stop the app. After a code change, do `npm run build` one time, because this
+mode serves the built `dist/` and not the live dev server.
+
 ## Pages
 
 **Collection** shows all 1383 printings. Set the number of normal copies and foil

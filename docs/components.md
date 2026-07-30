@@ -10,6 +10,19 @@ Read this before you edit the shared components, the page shell or the domain-ar
 - The pages in [client/src/pages/](../client/src/pages/) keep their own UI state and filters, and
   [client/src/styles.css](../client/src/styles.css) is one global stylesheet. The sort on the deck
   panel puts a card with no value for the key **last in the two directions**, and not at zero.
+- [client/src/components/RapidEntryDialog.jsx](../client/src/components/RapidEntryDialog.jsx) has two
+  screens, and the light switch flips `mode` between them. Both screens turn the typed token into a
+  delta with the one `resolveRapidEntry` in [lib/rapidEntry.js](../client/src/lib/rapidEntry.js) (the
+  grammar is in [libraries.md](libraries.md)).
+  - The **Pack** screen picks the set in a menu, then puts `SET-` before each token. All deltas are
+    additions (a `-` token still removes).
+  - The **Trade** screen has two boxes with **their own state** (`awayEntries`, `returnEntries`). The
+    user types the **full id**, thus a `SET_ID` split gives the set code and the rest to the shared
+    resolver; there is no menu and no prefix. The **away box negates the token** (it puts `-` before
+    it), so an away entry is a removal. The away guard counts the copies already queued away, thus it
+    cannot remove more copies than the collection holds. **Commit merges both boxes** in one
+    `mergeCollection` call, and `mergeCollection` takes the signed deltas and stops at 0. Either box
+    can stay empty.
 
 ## Domain art
 

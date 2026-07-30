@@ -39,6 +39,8 @@ applies.
   **Origins gives its runes usual numbers** (Fury Rune is `OGN-007`), but SFD, UNL and VEN use
   `R01`. Promos have many id formats, thus `buildPromoIndex` groups the printings by their numeric
   base and prefers the plain `-P`. The dialog calls `mergeCollection` **one time** at the commit.
+  The dialog's Trade screen uses the **same** `resolveRapidEntry`, but it types the set code in the
+  token and negates the away box — see [components.md](components.md).
 - [client/src/lib/importExport.js](../client/src/lib/importExport.js) has a CSV parser and
   `parseImport`, which identifies a DotGG, Legacy or TCGplayer file. A TCGplayer row matches first
   on the set code with the collector number, then on the name. **Never change or delete a row

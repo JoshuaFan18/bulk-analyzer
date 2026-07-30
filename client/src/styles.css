@@ -694,6 +694,94 @@ a {
   margin: -4px 0 14px;
 }
 
+/* Light-switch toggle between the Pack and Trade screens. */
+.rapid-mode-row {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 16px;
+}
+
+.rapid-switch {
+  position: relative;
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  width: 200px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-3);
+  cursor: pointer;
+  user-select: none;
+  overflow: hidden;
+}
+
+.rapid-switch-side {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: var(--text-dim);
+  transition: color 0.18s ease;
+}
+
+.rapid-switch.pack .rapid-switch-side.left,
+.rapid-switch.trade .rapid-switch-side.right {
+  color: #fff;
+}
+
+/* The knob slides under the active label. */
+.rapid-switch-knob {
+  position: absolute;
+  z-index: 0;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc(50% - 2px);
+  border-radius: 999px;
+  background: var(--accent);
+  transition: transform 0.18s ease;
+}
+
+.rapid-switch.trade .rapid-switch-knob {
+  transform: translateX(100%);
+}
+
+/* Trade screen: two symmetric columns, one give / one receive. */
+.rapid-trade {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.rapid-trade-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-2);
+}
+
+.rapid-trade-pane .rapid-input {
+  margin-top: 10px;
+}
+
+.rapid-trade-pane .rapid-list {
+  margin-top: 6px;
+  min-height: 200px;
+  max-height: 320px;
+}
+
+.rapid-stats .v.neg {
+  color: var(--red);
+}
+
 .rapid-head {
   display: flex;
   align-items: center;

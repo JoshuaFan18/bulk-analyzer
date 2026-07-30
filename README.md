@@ -33,9 +33,13 @@ mode serves the built `dist/` and not the live dev server.
 **Collection** shows all 1383 printings. Set the number of normal copies and foil
 copies for each printing. Use the filters for the set, the domain, the energy
 cost, the power cost, the might, the type, the rarity, the keyword and the tag.
-Rapid entry lets you type collector numbers quickly. Import accepts a DotGG CSV
-file, a Legacy CSV file or a TCGplayer CSV file. Push "Update prices" to get new
-prices.
+Rapid entry lets you type collector numbers quickly, and a switch flips it
+between two screens. The Pack screen adds the cards from one set, which you pick
+in a menu. The Trade screen has two boxes: one box for the cards you give and one
+box for the cards you get. On the Trade screen you type the full card id, because
+the set is not put in for you. Either box can stay empty. Import accepts a DotGG
+CSV file, a Legacy CSV file or a TCGplayer CSV file. Push "Update prices" to get
+new prices.
 
 **Surplus** shows the copies that no deck can play. The deck limit is 3 copies,
 but 12 for a Rune and 1 for a Legend and a Battlefield. The copies fold across
@@ -50,6 +54,7 @@ bulk when all of these conditions are true:
 - The normal price is less than the price limit ($0.20).
 - The maximum play rate across the meta legends is not more than the play-rate
   limit (10%).
+- The maximum popularity across the field is not more than (10%)
 
 The page also shows the cards that the meta protects, the cards above the price
 limit and the cards that the `Keep` tag holds back. A card with no price stays out

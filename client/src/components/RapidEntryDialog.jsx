@@ -18,6 +18,23 @@ const LEGEND = [
   ['-3', 'remove'],
 ];
 
+// The two columns of the trade screen. "away" leaves the collection, "return"
+// enters it; the component reads per-side state off these.
+const TRADE_PANES = [
+  {
+    side: 'away',
+    title: 'TRADING AWAY',
+    placeholder: 'e.g. OGN-007',
+    empty: 'Cards you give leave your collection.',
+  },
+  {
+    side: 'return',
+    title: 'GETTING IN RETURN',
+    placeholder: 'e.g. SFD-042',
+    empty: 'Cards you receive are added.',
+  },
+];
+
 // Copies of one printing/finish this session has queued but not committed.
 function sessionNet(entries, cardId, kind) {
   let n = 0;
@@ -35,6 +52,11 @@ export default function RapidEntryDialog({ onClose }) {
       (a, b) => SET_RELEASE_ORDER.indexOf(a[0]) - SET_RELEASE_ORDER.indexOf(b[0])
     );
   }, [cards]);
+
+  // Two screens share this dialog: 'pack' (the original box-opening flow) and
+  // 'trade' (two boxes — cards given away and cards received). The light switch
+  // flips between them.
+  const [mode, setMode] = useState('pack');
 
   // Newest set first — that is the box most likely being opened.
   const [setCode, setSetCode] = useState(() => setNames[setNames.length - 1]?.[0] || 'OGN');
@@ -117,7 +139,8 @@ export default function RapidEntryDialog({ onClose }) {
   };
 
   const guardedClose = () => {
-    if (entries.length > 0 && !window.confirm(`Discard ${entries.length} uncommitted entries?`)) {
+    const dirty = entries.length + awayEntries.length + returnEntries.length;
+    if (dirty > 0 && !window.confirm(`Discard ${dirty} uncommitted entries?`)) {
       return;
     }
     onClose();
@@ -129,8 +152,137 @@ export default function RapidEntryDialog({ onClose }) {
     onClose();
   };
 
+  // ---- Trade screen -------------------------------------------------------
+  // Two independent boxes. The set id is typed in full here (no dropdown, no
+  // auto-prefix), so a trade can span sets. "Away" entries are removals
+  // (negative deltas), "return" entries are additions (positive). Either side
+  // may stay empty. One commit applies both directions to the collection.
+  const [awayInput, setAwayInput] = useState('');
+  const [returnInput, setReturnInput] = useState('');
+  const [awayError, setAwayError] = useState(null);
+  const [returnError, setReturnError] = useState(null);
+  const [awayEntries, setAwayEntries] = useState([]);
+  const [returnEntries, setReturnEntries] = useState([]);
+  const awayRef = useRef(null);
+  const returnRef = useRef(null);
+
+  const awayTotals = useMemo(() => sessionTotals(awayEntries), [awayEntries]);
+  const returnTotals = useMemo(() => sessionTotals(returnEntries), [returnEntries]);
+  const awayValue = useMemo(() => sessionValue(awayTotals, cardsById), [awayTotals, cardsById]);
+  const returnValue = useMemo(
+    () => sessionValue(returnTotals, cardsById),
+    [returnTotals, cardsById]
+  );
+
+  // A removal can only take copies the collection actually holds, counting the
+  // copies already queued away this session (their deltas are negative).
+  const awayOwnedOf = (cardId, kind) =>
+    committedCopies(collection, cardId, kind) + sessionNet(awayEntries, cardId, kind);
+
+  // Split "OGN-007" into the set code and the rest of the token the shared
+  // resolver understands. The dash is optional, so "ogn7" works too.
+  const SET_ID = /^([A-Za-z]{2,4})[-\s]?(.+)$/;
+
+  const submitTrade = (side, raw) => {
+    const setError = side === 'away' ? setAwayError : setReturnError;
+    const m = String(raw).trim().match(SET_ID);
+    if (!m) {
+      setError('Type a full card id, e.g. OGN-007');
+      return;
+    }
+    const setCode = m[1].toUpperCase();
+    // The away box records removals, so its token is resolved as a negative.
+    const token = side === 'away' ? `-${m[2]}` : m[2];
+    const res = resolveRapidEntry(setCode, token, {
+      cardsById,
+      promoIndex,
+      ownedOf: awayOwnedOf,
+    });
+    if (res.error) {
+      setError(res.error);
+      return;
+    }
+    const entry = {
+      key: keyRef.current++,
+      cardId: res.card.id,
+      kind: res.kind,
+      delta: res.delta,
+      autoFinish: res.autoFinish,
+    };
+    if (side === 'away') {
+      setAwayEntries((prev) => [entry, ...prev]);
+      setAwayError(null);
+      setAwayInput('');
+    } else {
+      setReturnEntries((prev) => [entry, ...prev]);
+      setReturnError(null);
+      setReturnInput('');
+    }
+  };
+
+  const undoTrade = (side) => {
+    if (side === 'away') {
+      setAwayEntries((prev) => prev.slice(1));
+      setAwayError(null);
+      awayRef.current?.focus();
+    } else {
+      setReturnEntries((prev) => prev.slice(1));
+      setReturnError(null);
+      returnRef.current?.focus();
+    }
+  };
+
+  const tradeKeyDown = (side) => (e) => {
+    const input = side === 'away' ? awayInput : returnInput;
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (input.trim()) submitTrade(side, input);
+      return;
+    }
+    if (e.key === 'Backspace' && !input) {
+      e.preventDefault();
+      undoTrade(side);
+      return;
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      if (side === 'away') {
+        setAwayInput('');
+        setAwayError(null);
+      } else {
+        setReturnInput('');
+        setReturnError(null);
+      }
+    }
+  };
+
+  const tradeDirty = awayEntries.length + returnEntries.length;
+
+  const commitTrade = () => {
+    const totalsTrade = sessionTotals([...awayEntries, ...returnEntries]);
+    if (totalsTrade.size === 0) return;
+    mergeCollection(Object.fromEntries(totalsTrade));
+    onClose();
+  };
+
   return (
     <Modal title="Rapid entry" className="wide" onClose={guardedClose}>
+      <div className="rapid-mode-row">
+        <button
+          type="button"
+          className={`rapid-switch ${mode === 'trade' ? 'trade' : 'pack'}`}
+          role="switch"
+          aria-checked={mode === 'trade'}
+          onClick={() => setMode((m) => (m === 'pack' ? 'trade' : 'pack'))}
+        >
+          <span className="rapid-switch-side left">Pack</span>
+          <span className="rapid-switch-side right">Trade</span>
+          <span className="rapid-switch-knob" />
+        </button>
+      </div>
+
+      {mode === 'pack' ? (
+        <>
       <p className="muted rapid-sub">
         Call cards, type numbers. Built for two people — one reads, one types.
       </p>
@@ -287,6 +439,114 @@ export default function RapidEntryDialog({ onClose }) {
           ✓ Commit to your main collection
         </button>
       </div>
+        </>
+      ) : (
+        <>
+          <p className="muted rapid-sub">
+            Enter the full card id on each side — the set is not filled in for you. Leave a side
+            empty if the trade is one-way.
+          </p>
+
+          <div className="rapid-trade">
+            {TRADE_PANES.map((pane) => {
+              const isAway = pane.side === 'away';
+              const input = isAway ? awayInput : returnInput;
+              const setInput = isAway ? setAwayInput : setReturnInput;
+              const paneError = isAway ? awayError : returnError;
+              const setPaneError = isAway ? setAwayError : setReturnError;
+              const paneEntries = isAway ? awayEntries : returnEntries;
+              const ref = isAway ? awayRef : returnRef;
+              return (
+                <div className="rapid-trade-pane" key={pane.side}>
+                  <div className="rapid-pane-head">
+                    <span>{pane.title}</span>
+                    <span className="muted">
+                      {paneEntries.length} {paneEntries.length === 1 ? 'entry' : 'entries'}
+                    </span>
+                  </div>
+
+                  <div
+                    className={`rapid-input ${paneError ? 'has-error' : ''}`}
+                    onClick={() => ref.current?.focus()}
+                  >
+                    <input
+                      ref={ref}
+                      value={input}
+                      placeholder={pane.placeholder}
+                      onChange={(e) => {
+                        setInput(e.target.value);
+                        setPaneError(null);
+                      }}
+                      onKeyDown={tradeKeyDown(pane.side)}
+                    />
+                  </div>
+                  <div className="rapid-hint">
+                    {paneError ? (
+                      <span className="warn">{paneError}</span>
+                    ) : paneEntries.length > 0 ? (
+                      <>
+                        <kbd>Backspace</kbd> undoes the last entry
+                      </>
+                    ) : (
+                      <>
+                        Type a card id and press <kbd>Enter</kbd>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="rapid-list">
+                    {paneEntries.length === 0 && (
+                      <div className="rapid-empty">{pane.empty}</div>
+                    )}
+                    {paneEntries.map((e) => {
+                      const card = cardsById.get(e.cardId);
+                      return (
+                        <div className="rapid-row" key={e.key}>
+                          <code>{e.cardId}</code>
+                          <span className="rapid-name">{card?.name || '—'}</span>
+                          <span className={`pill ${e.kind === 'foil' ? 'gold' : ''}`}>
+                            {e.kind.toUpperCase()}
+                            {e.autoFinish ? '·auto' : ''}
+                          </span>
+                          <span className="muted">
+                            {money(e.kind === 'foil' ? card?.foilPrice : card?.price)}
+                          </span>
+                          <span className={e.delta < 0 ? 'rapid-delta neg' : 'rapid-delta'}>
+                            {e.delta > 0 ? `+${e.delta}` : e.delta}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="modal-actions rapid-actions">
+            <div className="rapid-stats">
+              <div className="stat-box">
+                <div className="v">{money(-awayValue)}</div>
+                <div className="k">Giving</div>
+              </div>
+              <div className="stat-box">
+                <div className="v">{money(returnValue)}</div>
+                <div className="k">Getting</div>
+              </div>
+              <div className="stat-box">
+                <div className={`v ${returnValue + awayValue < 0 ? 'neg' : ''}`}>
+                  {money(returnValue + awayValue)}
+                </div>
+                <div className="k">Net value</div>
+              </div>
+            </div>
+            <span className="spacer" />
+            <button className="primary" onClick={commitTrade} disabled={tradeDirty === 0}>
+              ✓ Commit trade to your collection
+            </button>
+          </div>
+        </>
+      )}
     </Modal>
   );
 }

@@ -5,6 +5,7 @@ import { useApp } from '../state.jsx';
 import DeckStats from '../components/DeckStats.jsx';
 import DeckCollectionList from '../components/DeckCollectionList.jsx';
 import DeckExportModal from '../components/DeckExportModal.jsx';
+import DeckImageModal from '../components/DeckImageModal.jsx';
 import DeckTabs from '../components/DeckTabs.jsx';
 import CardDetailModal from '../components/CardDetailModal.jsx';
 import { COLOR_HEX, money, ownedAcrossPrintings } from '../lib/cards.js';
@@ -27,6 +28,7 @@ export default function DeckViewerPage() {
   const [error, setError] = useState(null);
   const [tab, setTab] = useState('deck');
   const [showExport, setShowExport] = useState(false);
+  const [showImage, setShowImage] = useState(false);
   // The id, not the card, so an open popup shows the new price after a refresh.
   const [detailId, setDetailId] = useState(null);
 
@@ -94,6 +96,7 @@ export default function DeckViewerPage() {
               <button className="primary">Edit deck</button>
             </Link>
             <button onClick={() => setShowExport(true)}>Export</button>
+            <button onClick={() => setShowImage(true)}>Export image</button>
             <button className="danger" onClick={remove}>
               Delete
             </button>
@@ -132,6 +135,9 @@ export default function DeckViewerPage() {
 
       {showExport && (
         <DeckExportModal deck={deck} cardsById={cardsById} onClose={() => setShowExport(false)} />
+      )}
+      {showImage && (
+        <DeckImageModal deck={deck} cardsById={cardsById} onClose={() => setShowImage(false)} />
       )}
     </div>
   );

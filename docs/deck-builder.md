@@ -56,16 +56,34 @@ download keeps the full-size pixels.
   loads each image with `crossOrigin = 'anonymous'`, thus the canvas stays clean and `toBlob` works.
   Without both of these the canvas is **tainted** and the export throws. Do not change the image
   source (`card.image`) or remove the flag.
-- **The layout has two columns**, to fill the space beside the small zones. The left column has the
-  Legend, the Chosen Champion, the Battlefields and the Runes; the Legend and the Champion share the
-  top row. The right column has the Main Deck and the Sideboard. A deck with only one of the two
-  sides gets one full-width column instead.
+- **The layout has two columns and a bottom band**, to fill the space beside the small zones. The
+  left column has the Legend and the Chosen Champion in the top row, then the Battlefields. The right
+  column has the Main Deck, and under it the band with the Runes and the Sideboard side by side. A
+  deck with no left zone gets one full-width column instead.
+  - The **Legend and the Champion cells are larger** than a Main-Deck cell (`BIG_SCALE`), because
+    they are the identity of the deck. The left column is two of these cells wide.
+  - The **Runes and the Sideboard cells are smaller**, so the two zones fit on one line.
+    `BOTTOM_COLS` is the columns of one zone, and the cell width always comes from a band of **two**
+    slots. Thus a deck with only one of the two zones keeps the same cell size and takes more
+    columns, and the cells do not change size with the contents.
+  - The **Main Deck rows are centred** in their column (the `center` flag of `drawSection`), thus a
+    part-filled last row does not hang to the left.
+  - **Each column flows on its own.** The Main Deck starts at the top of its column, and the band
+    follows the Main Deck and not the left column. Do not align the two columns against each other:
+    that opens a grey band above or under the Main Deck when the left column is the taller one. The
+    canvas height is the taller of the two columns.
 - **The Bench is not in the picture.** It is the "considering" pile and not part of the deck that the
   picture shows.
 - The sections come from `deckImageSections(deck, cardsById)` in
   [lib/deck.js](../client/src/lib/deck.js). The cards are in **alphabetical order** in each section. A
   card id that the database does not have keeps its row as a placeholder tile, thus an imported deck
   loses no card in the picture.
-- The card aspect (744×1039, ≈1.397 tall) is read from the first image that loads, and every cell
-  uses that one ratio, thus a mixed set of images does not stretch. The Legend and the Champion are
-  always one copy, thus they wear no `×count` badge.
+- **Each cell is portrait, and the battlefield cell is the one exception**: it is landscape,
+  `FIELD_SCALE` of the width of the left column, and the battlefields stack one on top of the other.
+  The ratio is always the fixed `FALLBACK_ASPECT` (744×1039, ≈1.397 tall) one way or the other. Do
+  not read the ratio from a loaded file: the CDN sends most battlefields **landscape** and four of
+  them **portrait**, and one landscape file first in the map made all of the cells short and wide.
+  `drawCard` turns a file a quarter turn counter-clockwise when its shape does not match its cell,
+  which is the same rule as [CardArt](../client/src/components/CardArt.jsx) on the screen (see
+  [components.md](components.md)). The Legend and the Champion are always one copy, thus they wear no
+  `×count` badge.

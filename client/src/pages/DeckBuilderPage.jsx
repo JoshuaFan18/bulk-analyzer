@@ -9,6 +9,7 @@ import DeckCollectionList from '../components/DeckCollectionList.jsx';
 import DeckExportModal from '../components/DeckExportModal.jsx';
 import DeckImageModal from '../components/DeckImageModal.jsx';
 import DeckTabs from '../components/DeckTabs.jsx';
+import CardArt from '../components/CardArt.jsx';
 import CardDetailModal from '../components/CardDetailModal.jsx';
 import PowerCost from '../components/PowerCost.jsx';
 import DeckFilterModal from '../components/DeckFilterModal.jsx';
@@ -520,7 +521,7 @@ export default function DeckBuilderPage() {
                     setDeck((d) => removeCard(d, card.id, zone));
                   }}
                 >
-                  <img src={card.image} alt={card.name} loading="lazy" decoding="async" />
+                  <CardArt card={card} />
                   {count > 0 && <span className="in-deck">{count}</span>}
                   {card.banned && <span className="banned-tag">BANNED</span>}
                   <span className={`owned-tag ${owned > 0 ? 'some' : 'none'}`}>
@@ -707,7 +708,7 @@ function DeckCardRow({
     <div className={`deck-card ${card ? '' : 'missing'}`}>
       {card ? (
         <button className="dc-thumb" onClick={onExpand} title={`${name} — click to enlarge`}>
-          <img src={card.image} alt={name} loading="lazy" decoding="async" />
+          <CardArt card={card} alt={name} />
         </button>
       ) : (
         <span className="dc-thumb empty">?</span>

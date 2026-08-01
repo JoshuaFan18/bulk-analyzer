@@ -1,5 +1,6 @@
 // Rules: docs/components.md
 import React, { useEffect } from 'react';
+import CardArt from './CardArt.jsx';
 import Modal from './Modal.jsx';
 import CardText from './CardText.jsx';
 import { useApp } from '../state.jsx';
@@ -76,7 +77,7 @@ export default function CardDetailModal({ card, onClose }) {
     >
       <div className="cd-body">
         <div className="cd-art">
-          <img src={card.image} alt={card.name} />
+          <CardArt card={card} />
         </div>
 
         <div className="cd-info">

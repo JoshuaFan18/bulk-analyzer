@@ -7,6 +7,7 @@ import DeckCollectionList from '../components/DeckCollectionList.jsx';
 import DeckExportModal from '../components/DeckExportModal.jsx';
 import DeckImageModal from '../components/DeckImageModal.jsx';
 import DeckTabs from '../components/DeckTabs.jsx';
+import CardArt from '../components/CardArt.jsx';
 import CardDetailModal from '../components/CardDetailModal.jsx';
 import { COLOR_HEX, money, ownedAcrossPrintings } from '../lib/cards.js';
 import {
@@ -66,7 +67,7 @@ export default function DeckViewerPage() {
   return (
     <div>
       <div className="viewer-head">
-        {legend && <img className="legend-art" src={legend.image} alt={legend.name} />}
+        {legend && <CardArt className="legend-art" card={legend} />}
         <div className="viewer-title" style={{ flex: 1, minWidth: 240 }}>
           <h2>{deck.name || 'Untitled deck'}</h2>
           <div className="viewer-badges">
@@ -155,7 +156,7 @@ function CardCell({ card, cardId, count, owned, onOpen }) {
   return (
     <div className="viewer-card" title={card.name}>
       <button type="button" className="vc-art" onClick={() => onOpen(cardId)}>
-        <img src={card.image} alt={card.name} loading="lazy" decoding="async" />
+        <CardArt card={card} />
       </button>
       <span className="vc-count">×{count}</span>
       {missing > 0 && <span className="vc-missing">missing {missing}</span>}

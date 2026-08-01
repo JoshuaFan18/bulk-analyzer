@@ -20,6 +20,7 @@ import {
 } from '../lib/cards.js';
 import { csvCell, downloadText } from '../lib/download.js';
 import { KEEP_TAG, hasTag } from '../lib/tags.js';
+import CardArt from '../components/CardArt.jsx';
 import CardDetailModal from '../components/CardDetailModal.jsx';
 import DomainChips from '../components/DomainChips.jsx';
 import Modal from '../components/Modal.jsx';
@@ -102,7 +103,7 @@ function CardCell({ card, onOpen, onHover }) {
         onFocus={() => onHover(null)}
       >
         {card.image ? (
-          <img src={card.image} alt="" loading="lazy" decoding="async" />
+          <CardArt card={card} alt="" />
         ) : (
           <span className="muted">?</span>
         )}
@@ -243,10 +244,17 @@ function MetaDecksModal({ row, owned, limits, mode, combine, onClose, onDetails 
     >
       <div className="hstack" style={{ alignItems: 'flex-start', gap: 16 }}>
         {row.card.image && (
-          <img
-            src={row.card.image}
-            alt={row.card.name}
-            style={{ width: PREVIEW_W, borderRadius: 10 }}
+          <CardArt
+            card={row.card}
+            // The box is given, and not left to the file, or a turned
+            // battlefield would make a box of a different height.
+            style={{
+              width: PREVIEW_W,
+              aspectRatio: '5 / 7',
+              objectFit: 'cover',
+              borderRadius: 10,
+              overflow: 'hidden',
+            }}
           />
         )}
         <div style={{ flex: 1 }}>
@@ -345,8 +353,7 @@ export default function StaplesAnalyzerPage() {
       return;
     }
     setHover({
-      image: card.image,
-      name: card.name,
+      card,
       x: Math.min(x + 18, window.innerWidth - PREVIEW_W - 8),
       y: Math.min(Math.max(y - PREVIEW_H / 2, 8), window.innerHeight - PREVIEW_H - 8),
     });
@@ -1003,10 +1010,9 @@ export default function StaplesAnalyzerPage() {
       )}
 
       {hover && (
-        <img
+        <CardArt
           className="card-hover-preview"
-          src={hover.image}
-          alt={hover.name}
+          card={hover.card}
           style={{ left: hover.x, top: hover.y, width: PREVIEW_W }}
         />
       )}

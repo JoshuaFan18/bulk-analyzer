@@ -27,6 +27,16 @@ A new page or a new area gets its own `docs/<area>.md`. Put the page-specific ru
 one row to the table above with the trigger files. **Keep this file the always-true core and the
 map** — do not paste the page rules back into it, or you undo the token saving that the split gives.
 
+### When a new file does not need a dedicated page
+
+If a new file does not need its own `docs/<area>.md` page, add the doc reference as the first
+line of the file. Use this format:
+
+```javascriptreact
+// Rules: docs/deck-builder.md
+```
+Put this line at the top of the file, before all other code. Use the path of the existing page that records the rules for this file.
+
 ## Commands
 
 ```bash

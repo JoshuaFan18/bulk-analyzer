@@ -1,3 +1,4 @@
+// Rules: docs/deck-builder.md
 import React, { useEffect, useRef, useState } from 'react';
 import Modal from './Modal.jsx';
 import { deckImageSections } from '../lib/deck.js';

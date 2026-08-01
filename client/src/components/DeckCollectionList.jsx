@@ -1,3 +1,4 @@
+// Rules: docs/components.md
 import React, { useMemo } from 'react';
 import { useApp } from '../state.jsx';
 import { deckEntries } from '../lib/deck.js';

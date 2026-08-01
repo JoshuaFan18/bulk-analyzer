@@ -1,3 +1,4 @@
+// Rules: docs/components.md
 import React, { useMemo, useState } from 'react';
 import Modal from './Modal.jsx';
 import { parseImport } from '../lib/importExport.js';

@@ -1,3 +1,4 @@
+// Rules: docs/components.md
 import React, { useState } from 'react';
 import { effectivePrice, money } from '../lib/cards.js';
 import { KEEP_TAG, isReservedTag } from '../lib/tags.js';

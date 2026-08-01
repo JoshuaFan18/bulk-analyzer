@@ -1,3 +1,4 @@
+// Rules: docs/components.md
 import React from 'react';
 
 // Deck / Stats / Collection, the tab strip both the builder's side panel and the

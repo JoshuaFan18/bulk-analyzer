@@ -1,3 +1,4 @@
+// Rules: docs/components.md
 import React from 'react';
 import DomainIcon from './DomainIcon.jsx';
 

@@ -1,3 +1,4 @@
+// Rules: docs/components.md
 import React, { useMemo, useRef, useState } from 'react';
 import Modal from './Modal.jsx';
 import { useApp } from '../state.jsx';

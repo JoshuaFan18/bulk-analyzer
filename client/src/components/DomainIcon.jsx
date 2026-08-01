@@ -1,3 +1,4 @@
+// Rules: docs/components.md
 import React from 'react';
 import { DOMAIN_ICON, DOMAIN_POWER_ICON, RAINBOW_ICON } from '../lib/icons.js';
 

@@ -1,3 +1,4 @@
+// Rules: docs/components.md
 import React from 'react';
 
 export default function Modal({ title, onClose, className, children }) {

@@ -1,3 +1,4 @@
+// Rules: docs/components.md
 import React from 'react';
 import Modal from './Modal.jsx';
 import { exportDeckText } from '../lib/deck.js';

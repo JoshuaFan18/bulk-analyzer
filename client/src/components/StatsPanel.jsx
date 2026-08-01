@@ -1,3 +1,4 @@
+// Rules: docs/components.md
 import React, { useMemo } from 'react';
 import { COLORS, isToken, money, ownedCopies, playsetTarget, setLabel } from '../lib/cards.js';
 

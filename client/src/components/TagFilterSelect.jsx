@@ -1,3 +1,4 @@
+// Rules: docs/components.md
 import React from 'react';
 
 // The tag filter, shared by the collection page's filter bar and the deck

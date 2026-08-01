@@ -76,7 +76,14 @@ function drawCard(ctx, item, img, x, y, cardW, cardH, showCount) {
   roundRectPath(ctx, x, y, cardW, cardH, 12);
   ctx.save();
   ctx.clip();
-  if (img) {
+  if (img && item.card?.type === 'Battlefield' && img.naturalWidth > img.naturalHeight) {
+    // The CDN sends most battlefields landscape and four of them portrait. A
+    // quarter turn counter-clockwise makes the landscape ones portrait, the
+    // same as the DOM path in CardArt.jsx. The clip above holds the edges.
+    ctx.translate(x + cardW / 2, y + cardH / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.drawImage(img, -cardH / 2, -cardW / 2, cardH, cardW);
+  } else if (img) {
     ctx.drawImage(img, x, y, cardW, cardH);
   } else {
     // A card id the database does not have, or art that failed to load: a plain
@@ -202,15 +209,11 @@ function layoutStack(ctx, list, x0, startY, cols, cardW, cardH, images, draw) {
 // Paint the whole deck onto `canvas`, sizing it to fit. `images` maps a card id
 // to its loaded Image (or null). Returns nothing; the caller reads the canvas.
 function drawDeckImage(canvas, deckName, sections, images) {
-  let aspect = FALLBACK_ASPECT;
-  for (const img of images.values()) {
-    if (img) {
-      aspect = img.naturalHeight / img.naturalWidth;
-      break;
-    }
-  }
+  // Every cell is portrait, and the ratio is fixed. The size must not come from
+  // a loaded file: a battlefield file is landscape, and one of them first in the
+  // map made all of the cells short and wide. drawCard turns such a file.
   const cardW = CARD_W;
-  const cardH = Math.round(cardW * aspect);
+  const cardH = Math.round(cardW * FALLBACK_ASPECT);
 
   const byZone = Object.fromEntries(sections.map((s) => [s.zone, s]));
   const leftSections = LEFT_ZONES.map((z) => byZone[z]).filter(Boolean);

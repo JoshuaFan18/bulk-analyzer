@@ -1,5 +1,6 @@
 // Rules: docs/components.md
 import React, { useState } from 'react';
+import CardArt from './CardArt.jsx';
 import { effectivePrice, money } from '../lib/cards.js';
 import { KEEP_TAG, isReservedTag } from '../lib/tags.js';
 
@@ -87,13 +88,7 @@ export default function CardTile({
           title={`${card.name} — view card details`}
           onClick={() => onExpand?.(card.id)}
         >
-          <img
-            className="card-img"
-            src={card.image}
-            alt={card.name}
-            loading="lazy"
-            decoding="async"
-          />
+          <CardArt className="card-img" card={card} />
           <span className="expand-hint">⤢</span>
         </button>
         {card.banned && <span className="banned-tag">BANNED</span>}

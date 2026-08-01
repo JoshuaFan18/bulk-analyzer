@@ -7,6 +7,16 @@ Read this before you edit the shared components, the page shell or the domain-ar
   full-card popup. It is **read-only** and must not change a deck or the collection. The two call
   sites keep the card **id** and not the card, thus an open popup shows the new price after a
   refresh. On the tile, the star and the lock stay **outside** the art button.
+- [client/src/components/CardArt.jsx](../client/src/components/CardArt.jsx) is the one card image.
+  **Every render site uses it**, and no site writes its own `<img src={card.image}>`. The DotGG CDN
+  does not send the battlefields in one orientation: 67 files are landscape and 4 are portrait. Thus
+  CardArt gives a landscape battlefield the class `turned`, and one rule at the **end** of
+  [styles.css](../client/src/styles.css) turns it a quarter turn counter-clockwise. All cards then
+  show portrait in the same 5:7 slot. The turn comes from a **measurement** of the loaded file (in
+  `onLoad` **and** in the ref callback, because a cached image can be `complete` before `onLoad`
+  attaches), and not from a list of ids, thus the app stays correct if DotGG repairs a file. A site
+  that gives the image a width only must also give it the `5 / 7` box, or a turned battlefield makes
+  a box of a different height.
 - The pages in [client/src/pages/](../client/src/pages/) keep their own UI state and filters, and
   [client/src/styles.css](../client/src/styles.css) is one global stylesheet. The sort on the deck
   panel puts a card with no value for the key **last in the two directions**, and not at zero.

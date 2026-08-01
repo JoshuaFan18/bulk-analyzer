@@ -1196,6 +1196,12 @@ th.qty-col {
 .card-hover-preview {
   position: fixed;
   z-index: 60;
+  /* The width comes from PREVIEW_W in the two analyzer pages, and PREVIEW_H is
+     the same 5:7. Thus the box is given here, or a turned battlefield (which
+     has a landscape file) would make a box of a different height. */
+  aspect-ratio: 5 / 7;
+  object-fit: cover;
+  overflow: hidden;
   border-radius: 10px;
   border: 1px solid var(--border);
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.55);
@@ -1735,6 +1741,11 @@ details.panel[open] > summary {
 .cd-art img {
   display: block;
   width: 100%;
+  /* The box is given, and not left to the file, or a turned battlefield (which
+     has a landscape file) would make a box of a different height. */
+  aspect-ratio: 5 / 7;
+  object-fit: cover;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 10px;
 }
@@ -2371,6 +2382,27 @@ details.panel[open] > summary {
   background: none;
   accent-color: var(--accent-2);
   flex: none;
+}
+
+/* ---- Turned card art (client/src/components/CardArt.jsx) ---- */
+/* The CDN sends most battlefields landscape and four of them portrait. A
+   quarter turn counter-clockwise makes all of them portrait like every other
+   card, and 744:1039 is almost exactly the 5:7 card slot, thus a turned card
+   fills that slot. `contain` first, then the reciprocal scale, keeps all of the
+   card in the frame. CardArt puts the class on, and only after it measures the
+   file. **This block stays at the end of the file**, because the per-site rules
+   above set `object-fit` and some of them have the same specificity. */
+img.card-art.turned {
+  object-fit: contain;
+  transform: rotate(-90deg) scale(calc(1039 / 744));
+}
+
+/* The deck-row thumb is a 58×44 landscape box, and it crops every card. Thus a
+   turned battlefield gets `cover` and the box ratio, or it would show with bars
+   while all other cards fill the thumb. */
+.dc-thumb img.card-art.turned {
+  object-fit: cover;
+  transform: rotate(-90deg) scale(calc(58 / 44));
 }
 
 /* Clearing the legend hides TYPE/ENERGY/POWER/MIGHT/RARITY but keeps their

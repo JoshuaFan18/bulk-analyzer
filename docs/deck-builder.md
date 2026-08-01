@@ -66,6 +66,10 @@ download keeps the full-size pixels.
   [lib/deck.js](../client/src/lib/deck.js). The cards are in **alphabetical order** in each section. A
   card id that the database does not have keeps its row as a placeholder tile, thus an imported deck
   loses no card in the picture.
-- The card aspect (744×1039, ≈1.397 tall) is read from the first image that loads, and every cell
-  uses that one ratio, thus a mixed set of images does not stretch. The Legend and the Champion are
-  always one copy, thus they wear no `×count` badge.
+- **Each cell is portrait**, and the ratio is the fixed `FALLBACK_ASPECT` (744×1039, ≈1.397 tall).
+  Do not read the ratio from a loaded file: the CDN sends most battlefields **landscape**, and one of
+  them first in the map made all of the cells short and wide. `drawCard` turns a landscape
+  battlefield a quarter turn counter-clockwise into the portrait cell, which is the same rule as
+  [CardArt](../client/src/components/CardArt.jsx) on the screen (see
+  [components.md](components.md)). The Legend and the Champion are always one copy, thus they wear no
+  `×count` badge.

@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api.js';
 import { useApp } from '../state.jsx';
+import CardArt from '../components/CardArt.jsx';
 import { ZONES, deckEntries, deckPrice, mainWithChampion } from '../lib/deck.js';
 import { money, ownedAcrossPrintings } from '../lib/cards.js';
 
@@ -35,7 +36,7 @@ export default function DecksPage() {
           return (
             <div className="deck-summary" key={deck.id}>
               {legend ? (
-                <img src={legend.image} alt={legend.name} loading="lazy" />
+                <CardArt card={legend} />
               ) : (
                 <div style={{ width: 64 }} />
               )}

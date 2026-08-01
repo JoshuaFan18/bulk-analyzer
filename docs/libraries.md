@@ -35,7 +35,12 @@ applies.
   Surplus page ignore these cards.
 - [client/src/lib/rapidEntry.js](../client/src/lib/rapidEntry.js) has the keyboard grammar for
   [RapidEntryDialog](../client/src/components/RapidEntryDialog.jsx): `3` is normal, `3+` is foil, `3p`
-  is promo, `10x3` is three copies, `-3` removes, and the modifiers can be in any sequence.
+  is promo, `3a`/`3b` are the alternative-art printings (`SET-003a`; the runes fold in, so `r01a` is
+  `SET-R01a`), `3*` is the signature printing (the `-STAR` overnumber, `SET-227-STAR`), `10x3` is
+  three copies, `-3` removes, and the modifiers can be in any sequence. Sets disagree on the case of
+  the `a`/`b` suffix (`OGN-066a` but `VEN-021A`), thus the resolver tries the typed case, then the
+  other. The alt-art and signature printings are all foil-only, thus `routeFinish` sends them to
+  foil and the row shows the auto-swap.
   **Origins gives its runes usual numbers** (Fury Rune is `OGN-007`), but SFD, UNL and VEN use
   `R01`. Promos have many id formats, thus `buildPromoIndex` groups the printings by their numeric
   base and prefers the plain `-P`. The dialog calls `mergeCollection` **one time** at the commit.

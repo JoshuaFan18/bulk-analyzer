@@ -10,6 +10,9 @@ import { ownedCopies, routeFinish } from './cards.js';
 //   3      +1 normal copy of SET-003
 //   3+     +1 foil copy
 //   3p     +1 copy of the promo printing
+//   3a     +1 copy of the alternative-art printing (SET-003a, also the runes:
+//          r01a is SET-R01a). b reaches the second alternative art (SET-003b).
+//   3*     +1 copy of the signature printing (the -STAR overnumber, SET-003-STAR)
 //   10x3   +3 copies
 //   -3     -1 copy
 
@@ -30,6 +33,7 @@ export function parseRapidToken(raw) {
   let rest = body.slice(core[0].length);
   let foil = false;
   let promo = false;
+  let variant = null;
   let times = 1;
 
   while (rest) {
@@ -38,6 +42,12 @@ export function parseRapidToken(raw) {
       rest = rest.slice(1);
     } else if (rest[0] === 'p') {
       promo = true;
+      rest = rest.slice(1);
+    } else if (rest[0] === 'a' || rest[0] === 'b') {
+      variant = rest[0];
+      rest = rest.slice(1);
+    } else if (rest[0] === '*') {
+      variant = 'star';
       rest = rest.slice(1);
     } else {
       const mult = rest.match(/^x(\d{1,3})/);
@@ -48,7 +58,7 @@ export function parseRapidToken(raw) {
     }
   }
 
-  return { sign, core: core[0], foil, promo, times };
+  return { sign, core: core[0], foil, promo, variant, times };
 }
 
 // Collector numbers are zero-padded inside the id, the same rule the TCGplayer
@@ -114,6 +124,17 @@ export function resolveRapidEntry(setCode, raw, { cardsById, promoIndex, ownedOf
     const list = promoIndex.get(baseId.toUpperCase());
     if (!list || list.length === 0) return { error: `${baseId} has no promo printing` };
     card = pickPromo(list, baseId);
+  } else if (parsed.variant === 'star') {
+    // Signature cards are overnumbered and carry a -STAR suffix (SFD-227-STAR).
+    card = cardsById.get(`${baseId}-STAR`);
+    if (!card) return { error: `No card ${baseId}-STAR` };
+  } else if (parsed.variant) {
+    // Alternative-art printings add a trailing a/b, but the sets disagree on the
+    // case (OGN-066a is lower, VEN-021A is upper), so try the typed case first.
+    card =
+      cardsById.get(baseId + parsed.variant) ||
+      cardsById.get(baseId + parsed.variant.toUpperCase());
+    if (!card) return { error: `No card ${baseId}${parsed.variant}` };
   } else {
     card = cardsById.get(baseId);
     if (!card) return { error: `No card ${baseId}` };

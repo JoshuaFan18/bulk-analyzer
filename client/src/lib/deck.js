@@ -365,6 +365,41 @@ export function exportDeckText(deck, cardsById) {
   return blocks.join('\n\n');
 }
 
+// Zones in the order a visual deck layout shows them, with the label each one
+// wears. The single-card zones lead, then the main deck and the rest. The bench
+// is left out: it is the "considering" pile, not part of the deck the picture
+// presents.
+const IMAGE_SECTIONS = [
+  ['Legend', 'legend'],
+  ['Champion', 'champion'],
+  ['Main Deck', 'main'],
+  ['Battlefields', 'battlefields'],
+  ['Runes', 'runes'],
+  ['Sideboard', 'side'],
+];
+
+// The deck as ordered sections for the image export: one entry per non-empty
+// zone, each `{ label, zone, count, items }` where `count` is the copies in the
+// zone and `items` is `{ cardId, count, card }` sorted alphabetically by name.
+// A card id the database does not have keeps its row (card is null), so an
+// imported deck never loses a line in the picture.
+export function deckImageSections(deck, cardsById) {
+  const sections = [];
+  for (const [label, zone] of IMAGE_SECTIONS) {
+    let entries;
+    if (zone === 'legend') entries = deck.legend ? [[deck.legend, 1]] : [];
+    else if (zone === 'champion') entries = deck.champion ? [[deck.champion, 1]] : [];
+    else entries = Object.entries(deck[zone] || {});
+    if (entries.length === 0) continue;
+    const items = entries
+      .map(([cardId, count]) => ({ cardId, count, card: cardsById?.get(cardId) || null }))
+      .sort((a, b) => (a.card?.name || a.cardId).localeCompare(b.card?.name || b.cardId));
+    const count = items.reduce((s, i) => s + i.count, 0);
+    sections.push({ label, zone, count, items });
+  }
+  return sections;
+}
+
 // Name lookup for imports. Built from deduped base printings so a name with
 // several printings (the six runes) always resolves to the same canonical card,
 // and so an import never lands on a promo or alt art.

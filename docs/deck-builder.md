@@ -1,9 +1,12 @@
 # Deck builder — filters and legality
 
 Read this before you edit [DeckBuilderPage](../client/src/pages/DeckBuilderPage.jsx),
-[DeckFilterModal](../client/src/components/DeckFilterModal.jsx) or the legality rules in
-[lib/deck.js](../client/src/lib/deck.js). See also [libraries.md](libraries.md) for the deck model
-and [CLAUDE.md](../CLAUDE.md) for the always-true core.
+[DeckFilterModal](../client/src/components/DeckFilterModal.jsx),
+[DeckImageModal](../client/src/components/DeckImageModal.jsx) or the legality rules in
+[lib/deck.js](../client/src/lib/deck.js). The image export (the last section) also mounts on
+[DeckViewerPage](../client/src/pages/DeckViewerPage.jsx), so read that section before you touch the
+"Export image" wiring there. See also [libraries.md](libraries.md) for the deck model and
+[CLAUDE.md](../CLAUDE.md) for the always-true core.
 
 ## Filter modal
 
@@ -39,3 +42,30 @@ filter stops only an *addition*, but a deck import or a new legend can make an a
 - **Deck size** — the Chosen Champion is one of the 40 cards, thus the main zone holds 39. Use
   `mainTarget(deck)` and `mainWithChampion(deck)`, and do not compare `zoneCount(deck.main)` with
   40.
+
+## Image export
+
+The "Export image" button opens [DeckImageModal](../client/src/components/DeckImageModal.jsx). Both
+[DeckBuilderPage](../client/src/pages/DeckBuilderPage.jsx) and
+[DeckViewerPage](../client/src/pages/DeckViewerPage.jsx) mount the same button and the same modal, so
+a change to the picture must serve both. The modal draws the whole deck onto a `<canvas>` and saves
+it as one PNG. The canvas is drawn at full resolution and the CSS scales the preview down, thus the
+download keeps the full-size pixels.
+
+- **The card art comes from the DotGG CDN, which sends `Access-Control-Allow-Origin: *`.** The modal
+  loads each image with `crossOrigin = 'anonymous'`, thus the canvas stays clean and `toBlob` works.
+  Without both of these the canvas is **tainted** and the export throws. Do not change the image
+  source (`card.image`) or remove the flag.
+- **The layout has two columns**, to fill the space beside the small zones. The left column has the
+  Legend, the Chosen Champion, the Battlefields and the Runes; the Legend and the Champion share the
+  top row. The right column has the Main Deck and the Sideboard. A deck with only one of the two
+  sides gets one full-width column instead.
+- **The Bench is not in the picture.** It is the "considering" pile and not part of the deck that the
+  picture shows.
+- The sections come from `deckImageSections(deck, cardsById)` in
+  [lib/deck.js](../client/src/lib/deck.js). The cards are in **alphabetical order** in each section. A
+  card id that the database does not have keeps its row as a placeholder tile, thus an imported deck
+  loses no card in the picture.
+- The card aspect (744×1039, ≈1.397 tall) is read from the first image that loads, and every cell
+  uses that one ratio, thus a mixed set of images does not stretch. The Legend and the Champion are
+  always one copy, thus they wear no `×count` badge.

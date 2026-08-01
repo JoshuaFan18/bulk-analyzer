@@ -7,6 +7,7 @@ import Modal from '../components/Modal.jsx';
 import DeckStats from '../components/DeckStats.jsx';
 import DeckCollectionList from '../components/DeckCollectionList.jsx';
 import DeckExportModal from '../components/DeckExportModal.jsx';
+import DeckImageModal from '../components/DeckImageModal.jsx';
 import DeckTabs from '../components/DeckTabs.jsx';
 import CardDetailModal from '../components/CardDetailModal.jsx';
 import PowerCost from '../components/PowerCost.jsx';
@@ -133,6 +134,7 @@ export default function DeckBuilderPage() {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [showImport, setShowImport] = useState(false);
   const [showExport, setShowExport] = useState(false);
+  const [showImage, setShowImage] = useState(false);
   const [saveState, setSaveState] = useState('');
   const [groupMode, setGroupMode] = useState('type');
   const [sortMode, setSortMode] = useState('energy');
@@ -405,6 +407,7 @@ export default function DeckBuilderPage() {
           {deck.id && <button onClick={() => navigate(`/decks/view/${deck.id}`)}>View</button>}
           <button onClick={() => setShowImport(true)}>Import</button>
           <button onClick={() => setShowExport(true)}>Export</button>
+          <button onClick={() => setShowImage(true)}>Export image</button>
           <button
             className="danger"
             onClick={() => setDeck((d) => ({ ...emptyDeck(), id: d.id, name: d.name }))}
@@ -664,6 +667,9 @@ export default function DeckBuilderPage() {
 
       {showExport && (
         <DeckExportModal deck={deck} cardsById={cardsById} onClose={() => setShowExport(false)} />
+      )}
+      {showImage && (
+        <DeckImageModal deck={deck} cardsById={cardsById} onClose={() => setShowImage(false)} />
       )}
       {detailId && (
         <CardDetailModal card={cardsById.get(detailId)} onClose={() => setDetailId(null)} />

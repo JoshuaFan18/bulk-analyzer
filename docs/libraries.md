@@ -22,6 +22,9 @@ applies.
   copy along `ZONE_LADDER` (`bench` to `side` to `main`) and **removes the copy before it adds the
   copy**, thus the limit check at the destination does not count that copy. A blocked move must not
   delete the copy. Battlefields and Runes have no arrows. Use `canMoveCard` to disable the button.
+  `deckImageSections(deck, cardsById)` gives the deck as ordered, alphabetical sections for the image
+  export ([deck-builder.md](deck-builder.md)); it **leaves the Bench out** and keeps a row for a card
+  id the database does not have.
 - [client/src/lib/cardText.js](../client/src/lib/cardText.js) has `parseCardText`, which changes one
   `effect` string into blocks of parts for [CardText](../client/src/components/CardText.jsx). The icon
   codes are `rb_might`, `rb_exhaust`, `rb_energy_<n>`, `rb_rune_<domain>` and `rb_rune_rainbow`.

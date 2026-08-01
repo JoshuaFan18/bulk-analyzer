@@ -690,6 +690,23 @@ a {
   width: min(920px, 94vw);
 }
 
+/* The deck picture is drawn at full resolution and scaled to fit the modal. */
+.deck-image-preview {
+  margin-top: 10px;
+  max-height: 66vh;
+  overflow: auto;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.deck-image-preview canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 .rapid-sub {
   margin: -4px 0 14px;
 }

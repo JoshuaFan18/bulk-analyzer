@@ -14,7 +14,7 @@ cannot catch (there are no tests).
 | Area | Trigger files | Doc |
 | --- | --- | --- |
 | Libraries | `client/src/lib/*` | [docs/libraries.md](docs/libraries.md) |
-| Deck builder | `client/src/pages/DeckBuilderPage.jsx`, `client/src/components/DeckFilterModal.jsx`, legality in `client/src/lib/deck.js` | [docs/deck-builder.md](docs/deck-builder.md) |
+| Deck builder | `client/src/pages/DeckBuilderPage.jsx`, `client/src/components/DeckFilterModal.jsx`, `client/src/components/DeckImageModal.jsx`, legality in `client/src/lib/deck.js`, image export in `client/src/pages/DeckViewerPage.jsx` | [docs/deck-builder.md](docs/deck-builder.md) |
 | True Bulk analyzer | `client/src/pages/BulkAnalyzerPage.jsx` | [docs/bulk-analyzer.md](docs/bulk-analyzer.md) |
 | Staples analyzer | `client/src/pages/StaplesAnalyzerPage.jsx` | [docs/staples-analyzer.md](docs/staples-analyzer.md) |
 | Surplus | `client/src/pages/SurplusPage.jsx` | [docs/surplus.md](docs/surplus.md) |

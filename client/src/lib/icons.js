@@ -28,6 +28,7 @@ import orderPower from '../assets/icons/Order2.png';
 
 import rainbowRune from '../assets/icons/RainbowRune.png';
 import tap from '../assets/icons/Tap.png';
+import sword from '../assets/icons/SwordIconRB.png';
 
 // Plain art, for the Collection page's domain filter chips.
 export const DOMAIN_ICON = {
@@ -55,3 +56,6 @@ export const RAINBOW_ICON = rainbowRune;
 
 // [rb_exhaust]
 export const TAP_ICON = tap;
+
+// The might symbol: [rb_might] in rules text and the might stat on a deck row.
+export const MIGHT_ICON = sword;

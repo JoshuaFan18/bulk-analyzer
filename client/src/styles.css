@@ -1574,9 +1574,12 @@ details.panel[open] > summary {
   font-variant-numeric: tabular-nums;
 }
 
+/* SwordIconRB.png, scaled to the same inline box as the rune art so that it
+   sits on the text baseline like the glyph it replaced. */
 .rb-icon.might {
-  color: var(--accent);
-  font-size: 11px;
+  width: 13px;
+  height: 13px;
+  margin: 0 1px;
 }
 
 /* Tap.png, sized to sit on the text baseline like the CSS-drawn glyphs it

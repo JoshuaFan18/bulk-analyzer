@@ -13,6 +13,7 @@ import CardArt from '../components/CardArt.jsx';
 import CardDetailModal from '../components/CardDetailModal.jsx';
 import PowerCost from '../components/PowerCost.jsx';
 import DeckFilterModal from '../components/DeckFilterModal.jsx';
+import { MIGHT_ICON } from '../lib/icons.js';
 import {
   COLORS,
   cardIdentity,
@@ -743,7 +744,7 @@ function DeckCardRow({
           {card?.might != null && (
             <span className="dc-might" title={`${card.might} might`}>
               {card.might}
-              <span className="rb-icon might">⚔</span>
+              <img className="rb-icon might" src={MIGHT_ICON} alt="" />
             </span>
           )}
           <span className="dc-spacer" />

@@ -1,12 +1,12 @@
 // Rules: docs/components.md
 import React from 'react';
 import DomainIcon from './DomainIcon.jsx';
-import { TAP_ICON } from '../lib/icons.js';
+import { MIGHT_ICON, TAP_ICON } from '../lib/icons.js';
 import { iconSpec, parseCardText } from '../lib/cardText.js';
 
-// The game's inline symbols. Runes and the exhaust glyph are the bundled art in
-// client/src/assets/icons/; might and energy stay CSS-drawn, since the icon
-// rules do not name a file for either.
+// The game's inline symbols. Runes, the exhaust glyph and the might sword are
+// the bundled art in client/src/assets/icons/; energy stays CSS-drawn, since
+// the icon rules do not name a file for it.
 export function CardIcon({ token }) {
   const spec = iconSpec(token);
   // An icon code the card pool has not used before shows as its literal token
@@ -19,11 +19,7 @@ export function CardIcon({ token }) {
       </span>
     );
   if (spec.kind === 'might')
-    return (
-      <span className="rb-icon might" title={spec.label}>
-        ⚔
-      </span>
-    );
+    return <img className="rb-icon might" src={MIGHT_ICON} alt={spec.label} title={spec.label} />;
   if (spec.kind === 'exhaust')
     return <img className="rb-icon exhaust" src={TAP_ICON} alt={spec.label} title={spec.label} />;
   // spec.value is a domain name, or "Rainbow" for [rb_rune_rainbow]; DomainIcon

@@ -2,14 +2,14 @@
 #
 # The sources are 1000x1000 (RainbowRune.png alone is 285KB) and every one of
 # them is rendered as a ~12-16px inline glyph, so shipping the originals would
-# cost roughly 695KB for the 14 icons instead of ~30KB. 64px stays crisp at 2x
+# cost roughly 715KB for the 15 icons instead of ~32KB. 64px stays crisp at 2x
 # DPI. Run this once when the art changes and COMMIT the output: the client
 # `import`s these at build time, so, like client/src/data/powerCosts.json,
 # nothing regenerates them on demand and a fresh clone must build without it.
 #
 #   powershell -ExecutionPolicy Bypass -File scripts/resize-icons.ps1
 #
-# Only the 14 icons the UI actually uses are copied; the other 14 files in
+# Only the 15 icons the UI actually uses are copied; the other 13 files in
 # icons/ stay put as the art of record.
 
 param(
@@ -24,13 +24,28 @@ $src = Join-Path $root 'icons'
 $dest = Join-Path $root 'client/src/assets/icons'
 
 # Power / in-text runes (the "2" art), the rainbow (generic and multi-domain),
-# the plain domain art (Collection filter chips), and Tap for [rb_exhaust].
+# the plain domain art (Collection filter chips), Tap for [rb_exhaust] and the
+# sword for might.
 $icons = @(
   'Fury2', 'Calm2', 'Mind2', 'Body2', 'Order2', 'Chaos2',
   'RainbowRune',
   'Fury', 'Calm', 'Mind', 'Body', 'Order', 'Chaos',
-  'Tap'
+  'Tap', 'SwordIconRB'
 )
+
+# The two symbols that are drawn WHITE. The originals are dark line art, which
+# is nearly invisible on the app's dark background (--bg is #0e1116), and the
+# rules text they sit in is --text. The RGB of each pixel goes to white and the
+# alpha stays, thus the shape and its soft edges do not change. The sources in
+# icons/ stay untouched as the art of record; there is no light theme, so no
+# call site needs the dark version.
+$whiten = @('Tap', 'SwordIconRB')
+
+# All zeros in the R/G/B rows and a 1 in each of the first three cells of the
+# translation row makes every pixel white; the alpha row is the identity.
+$whiteMatrix = New-Object System.Drawing.Imaging.ColorMatrix
+$whiteMatrix.Matrix00 = 0; $whiteMatrix.Matrix11 = 0; $whiteMatrix.Matrix22 = 0
+$whiteMatrix.Matrix40 = 1; $whiteMatrix.Matrix41 = 1; $whiteMatrix.Matrix42 = 1
 
 if (-not (Test-Path $dest)) { New-Item -ItemType Directory -Path $dest | Out-Null }
 
@@ -51,7 +66,17 @@ foreach ($name in $icons) {
         $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
         $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
         $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
-        $g.DrawImage($image, (New-Object System.Drawing.Rectangle(0, 0, $Size, $Size)))
+        $rect = New-Object System.Drawing.Rectangle(0, 0, $Size, $Size)
+        if ($whiten -contains $name) {
+          $attr = New-Object System.Drawing.Imaging.ImageAttributes
+          try {
+            $attr.SetColorMatrix($whiteMatrix)
+            $g.DrawImage($image, $rect, 0, 0, $image.Width, $image.Height,
+              [System.Drawing.GraphicsUnit]::Pixel, $attr)
+          } finally { $attr.Dispose() }
+        } else {
+          $g.DrawImage($image, $rect)
+        }
       } finally { $g.Dispose() }
       $bitmap.Save($outPath, [System.Drawing.Imaging.ImageFormat]::Png)
     } finally { $bitmap.Dispose() }

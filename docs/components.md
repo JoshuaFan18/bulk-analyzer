@@ -38,7 +38,11 @@ Read this before you edit the shared components, the page shell or the domain-ar
 
 The card images come from the DotGG CDN through `card.image`, and the app has no local copies. The
 **domain art is the exception**. [icons/](../icons/) has the 1000×1000 originals, which are outside
-the Vite root and cannot be imported. `scripts/resize-icons.ps1` makes the 14 small files in
+the Vite root and cannot be imported. `scripts/resize-icons.ps1` makes the 15 small files in
 `client/src/assets/icons/`, and all imports point there. **To add an icon, add it in the two
-directories.** [vite.config.js](../vite.config.js) removes that directory from the inline rule, thus
-the browser keeps the files in its cache. There is no `client/public/`.
+directories.** The script also makes **Tap.png and SwordIconRB.png white** (the `$whiten` list): the
+originals are dark line art, which the dark background hides. The alpha stays, thus only the colour
+changes. The sources in `icons/` keep their original colour, and a call site that needs the dark art
+must make a second file — the app has no light theme, thus none does.
+[vite.config.js](../vite.config.js) removes that directory from the inline rule, thus the browser
+keeps the files in its cache. There is no `client/public/`.

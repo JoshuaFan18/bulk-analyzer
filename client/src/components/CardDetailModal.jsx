@@ -116,7 +116,10 @@ export default function CardDetailModal({ card, onClose }) {
           {card.errata && (
             <div className="cd-section">
               <span className="cd-label">Errata</span>
-              <div className="cd-errata">{decodeEntities(card.errata)}</div>
+              {/* Errata is authored in the same markup as `effect`, thus it
+                  carries icon codes and keyword brackets. It goes through
+                  CardText, and .cd-errata gives it its own colour only. */}
+              <CardText effect={card.errata} className="cd-errata" />
             </div>
           )}
 

@@ -3,3 +3,5 @@ dist/
 /data/
 .venv/
 .claude/settings.local.json
+
+data-dir.txt

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 import { getCards, refreshCards } from './cards.js';
 import { getPower, importPower } from './power.js';
 import { getLegends, getMetaMap, getStaples } from './riftdecks.js';
-import { readJson, writeJson, listJson, deleteJson } from './store.js';
+import { readJson, writeJson, listJson, deleteJson, assertDataDir, DATA_DIR } from './store.js';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const PORT = process.env.API_PORT || 5175;
@@ -151,6 +151,16 @@ if (fs.existsSync(dist)) {
   app.get(/^(?!\/api\/).*/, (req, res) => res.sendFile(path.join(dist, 'index.html')));
 }
 
+// The data folder comes before the port. A disconnected drive must stop the start,
+// and not give an app with no data in it.
+try {
+  await assertDataDir();
+} catch (err) {
+  console.error(String(err.message || err));
+  process.exit(1);
+}
+
 app.listen(PORT, () => {
   console.log(`Riftbound manager server listening on http://localhost:${PORT}`);
+  console.log(`Data folder: ${DATA_DIR}`);
 });

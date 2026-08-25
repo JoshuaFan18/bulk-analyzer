@@ -72,7 +72,11 @@ external sources. Thus the browser has no CORS problem.
 - [server/store.js](server/store.js) is the only layer that touches the filesystem. All access uses
   `readJson`, `writeJson`, `listJson` and `deleteJson`, relative to `data/`. A write goes to a
   temporary file, then the code renames it. A file that is not there gives the fallback, thus the
-  app starts correctly with an empty `data/`.
+  app starts correctly with an empty `data/`. The `DATA_DIR` environment variable moves the
+  folder to a different disk, for example a USB drive that two PCs share. `assertDataDir()`
+  runs one time in [server/index.js](server/index.js) before `listen`, and an **external
+  folder that is not there stops the server**. Without that test the fallback shows an empty
+  collection, then the first save makes a second set of files on the local disk.
 - [server/cards.js](server/cards.js) gets the DotGG indexed API and changes its column-index format
   into card objects. The result stays in `data/cards.json` until the user pushes "Update prices"
   (`POST /api/prices/refresh`). Prices and card data refresh together.

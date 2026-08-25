@@ -87,3 +87,34 @@ cards that have no power cost.
 | `data/power.json` | The power costs that the Config page imports |
 | `data/decks/*.json` | The saved decks |
 | `data/meta-cache/*.json` | The riftdecks.com data in the cache |
+
+The folder is `data/` in the repo. The `DATA_DIR` environment variable moves it to a
+different disk. See "Two PCs".
+
+## Two PCs
+
+Keep one data folder on a USB drive, and keep the code on each PC. The data is
+approximately 80 KB, thus a small drive is sufficient. `cards.json` and `meta-cache/` go
+to the drive also, and the two PCs then share the prices.
+
+1. Connect the drive on PC 1. Make a folder on it, for example `E:\riftbound-data`.
+2. Move the contents of `data/` into that folder.
+3. In the repo on PC 1, make a file `data-dir.txt`. Put the full path of the folder in
+   it, on one line, and with no quotation marks. This file is not in git, because the
+   drive letter can be different on each PC.
+4. Do step 3 again on PC 2, with the drive letter of PC 2.
+5. Start the app with `run-riftbound.bat`. The window shows "Data folder:" and the path.
+   Make sure that it is the path on the drive.
+
+Rules:
+
+- Use one PC at a time. The app saves 600 ms after each change, thus two servers on the
+  same folder can write over each other.
+- Close the app before you disconnect the drive.
+- If the drive is not connected, the app **does not start**. It shows the path and
+  stops. This is correct, because it prevents an empty collection and a second set of
+  files on the local disk.
+- For `npm run dev`, set the variable in the shell first:
+  `set DATA_DIR=E:\riftbound-data` in cmd, or
+  `$env:DATA_DIR = "E:\riftbound-data"` in PowerShell.
+- Make a copy of the folder from time to time. A USB drive can fail.
